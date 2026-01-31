@@ -1,0 +1,282 @@
+/*
+ * App Bileşeni Stilleri
+ * =====================
+ */
+
+/* Ana Layout - Sidebar + Content */
+.app {
+    display: flex;
+    height: 100vh;
+    width: 100vw;
+    background-color: var(--bg-primary);
+}
+
+/* ============================================
+   SIDEBAR
+   ============================================ */
+.sidebar {
+    width: 280px;
+    min-width: 280px;
+    height: 100%;
+    background-color: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    border-right: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-lg);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.logo-icon {
+    font-size: 1.5rem;
+}
+
+.logo-text {
+    font-size: var(--font-size-lg);
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent) 0%, #ff9a9e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.room-info {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.room-name {
+    font-size: var(--font-size-lg);
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+
+.room-status {
+    font-size: var(--font-size-sm);
+}
+
+.status-connected {
+    color: var(--success);
+}
+
+.status-disconnected {
+    color: var(--text-muted);
+}
+
+.users-section {
+    flex: 1;
+    padding: var(--spacing-md) var(--spacing-lg);
+    overflow-y: auto;
+}
+
+.users-section h3 {
+    font-size: var(--font-size-sm);
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin-bottom: var(--spacing-md);
+    letter-spacing: 0.05em;
+}
+
+.user-item {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm);
+    border-radius: var(--radius-md);
+    transition: background-color var(--transition-fast);
+}
+
+.user-item:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.user-avatar {
+    font-size: 1.25rem;
+}
+
+.user-name {
+    flex: 1;
+    font-size: var(--font-size-sm);
+}
+
+.user-speaking {
+    opacity: 0.5;
+}
+
+.sidebar-footer {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.electron-badge {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+/* ============================================
+   MAIN CONTENT
+   ============================================ */
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Bağlantı Ekranı */
+.connect-screen {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(ellipse at center, var(--bg-tertiary) 0%, var(--bg-primary) 70%);
+}
+
+.connect-card {
+    background-color: var(--bg-secondary);
+    padding: var(--spacing-xl) calc(var(--spacing-xl) * 1.5);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    text-align: center;
+    min-width: 320px;
+}
+
+.connect-card h1 {
+    font-size: var(--font-size-2xl);
+    margin-bottom: var(--spacing-sm);
+    background: linear-gradient(135deg, var(--accent) 0%, #ff9a9e 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.connect-card p {
+    color: var(--text-secondary);
+    margin-bottom: var(--spacing-lg);
+}
+
+.username-input {
+    width: 100%;
+    padding: var(--spacing-md);
+    background-color: var(--bg-primary);
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-base);
+    margin-bottom: var(--spacing-md);
+    transition: box-shadow var(--transition-fast);
+}
+
+.username-input::placeholder {
+    color: var(--text-muted);
+}
+
+.username-input:focus {
+    box-shadow: 0 0 0 2px var(--accent);
+}
+
+.connect-button {
+    width: 100%;
+    padding: var(--spacing-md);
+    background: linear-gradient(135deg, var(--accent) 0%, #ff6b6b 100%);
+    color: white;
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    border-radius: var(--radius-md);
+    transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.connect-button:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
+}
+
+.connect-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* ============================================
+   ROOM VIEW
+   ============================================ */
+.room-view {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: var(--spacing-md);
+}
+
+.video-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    overflow-y: auto;
+}
+
+.video-placeholder {
+    aspect-ratio: 16 / 9;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.placeholder-avatar {
+    font-size: 3rem;
+    opacity: 0.5;
+}
+
+.placeholder-name {
+    font-weight: 600;
+}
+
+.placeholder-text {
+    font-size: var(--font-size-sm);
+    color: var(--text-muted);
+}
+
+/* ============================================
+   CONTROL BAR
+   ============================================ */
+.control-bar {
+    display: flex;
+    justify-content: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-lg);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    margin: var(--spacing-md);
+}
+
+.control-button {
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-full);
+    background-color: var(--bg-tertiary);
+    font-size: 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color var(--transition-fast), transform var(--transition-fast);
+}
+
+.control-button:hover {
+    background-color: var(--accent);
+    transform: scale(1.1);
+}
+
+.control-button.leave-button:hover {
+    background-color: var(--error);
+}
