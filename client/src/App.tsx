@@ -3,6 +3,7 @@ import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActiv
 import { ScreenSharePicker } from './components/ScreenSharePicker';
 import { QualitySelector } from './components/QualitySelector';
 import { VolumeIndicator } from './components/VolumeIndicator';
+import { Avatar } from './components/Avatar';
 import './styles/App.css';
 
 /**
@@ -256,7 +257,7 @@ function App() {
                     <h3>Kullanıcılar</h3>
                     {isJoined && (
                         <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
-                            <span className="user-avatar">👤</span>
+                            <Avatar name={username} size="sm" isSpeaking={isSpeaking} />
                             <span className="user-name">{username} (Sen)</span>
                             {audioEnabled && <span className="user-mic-icon">🎤</span>}
                             {isSharing && <span className="user-sharing">🖥️</span>}
@@ -264,7 +265,7 @@ function App() {
                     )}
                     {consumers.map((consumer) => (
                         <div key={consumer.id} className="user-item">
-                            <span className="user-avatar">👤</span>
+                            <Avatar name={`User-${consumer.id.slice(0, 4)}`} size="sm" />
                             <span className="user-name">Kullanıcı</span>
                             <span className="user-media">{consumer.kind === 'video' ? '📹' : '🎤'}</span>
                         </div>
@@ -331,7 +332,7 @@ function App() {
                                 />
                                 {!videoEnabled && (
                                     <div className="video-placeholder-content">
-                                        <div className="placeholder-avatar">👤</div>
+                                        <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
                                         <div className="placeholder-name">{username}</div>
                                         <div className="placeholder-text">Kamera kapalı</div>
                                     </div>
