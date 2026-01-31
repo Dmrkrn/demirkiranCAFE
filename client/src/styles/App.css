@@ -402,3 +402,37 @@
 .user-sharing {
     color: var(--success);
 }
+
+/* Control bar layout */
+.control-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    margin: var(--spacing-md);
+}
+
+.control-buttons {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+}
+
+/* Speaking animation for mic button */
+.control-button.mic-button.speaking {
+    animation: speaking-glow 0.5s infinite alternate;
+    box-shadow: 0 0 10px var(--success);
+}
+
+@keyframes speaking-glow {
+    from {
+        box-shadow: 0 0 5px var(--success);
+    }
+
+    to {
+        box-shadow: 0 0 15px var(--success);
+    }
+}

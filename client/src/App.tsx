@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSocket, useMediasoup, useMediaDevices, useScreenShare } from './hooks';
+import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActivity, useQualitySettings } from './hooks';
 import { ScreenSharePicker } from './components/ScreenSharePicker';
+import { QualitySelector } from './components/QualitySelector';
+import { VolumeIndicator } from './components/VolumeIndicator';
 import './styles/App.css';
 
 /**
@@ -55,6 +57,12 @@ function App() {
         startScreenShare,
         stopScreenShare,
     } = useScreenShare();
+
+    // VAD (Voice Activity Detection)
+    const { isSpeaking, volume } = useVoiceActivity({ stream: localStream });
+
+    // Kalite Ayarları
+    const { currentQuality, setQuality, getConstraints } = useQualitySettings();
 
     // Electron API kontrolü
     const [isElectron, setIsElectron] = useState(false);
@@ -332,34 +340,45 @@ function App() {
 
                         {/* Kontrol Çubuğu */}
                         <div className="control-bar">
-                            <button
-                                className={`control-button mic-button ${!audioEnabled ? 'muted' : ''}`}
-                                onClick={toggleAudio}
-                                title={audioEnabled ? 'Mikrofonu Kapat' : 'Mikrofonu Aç'}
-                            >
-                                {audioEnabled ? '🎤' : '🔇'}
-                            </button>
-                            <button
-                                className={`control-button camera-button ${!videoEnabled ? 'muted' : ''}`}
-                                onClick={toggleVideo}
-                                title={videoEnabled ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
-                            >
-                                {videoEnabled ? '📷' : '📷'}
-                            </button>
-                            <button
-                                className={`control-button screen-button ${isSharing ? 'active' : ''}`}
-                                onClick={handleScreenShareClick}
-                                title={isSharing ? 'Ekran Paylaşımını Durdur' : 'Ekran Paylaş'}
-                            >
-                                🖥️
-                            </button>
-                            <button
-                                className="control-button leave-button"
-                                onClick={handleLeaveRoom}
-                                title="Odadan Ayrıl"
-                            >
-                                📴
-                            </button>
+                            {/* Kalite Seçici */}
+                            <QualitySelector
+                                currentQuality={currentQuality}
+                                onQualityChange={setQuality}
+                            />
+
+                            <div className="control-buttons">
+                                <button
+                                    className={`control-button mic-button ${!audioEnabled ? 'muted' : ''} ${isSpeaking ? 'speaking' : ''}`}
+                                    onClick={toggleAudio}
+                                    title={audioEnabled ? 'Mikrofonu Kapat' : 'Mikrofonu Aç'}
+                                >
+                                    {audioEnabled ? '🎤' : '🔇'}
+                                </button>
+                                {/* Ses Seviyesi Göstergesi */}
+                                {audioEnabled && <VolumeIndicator volume={volume} isSpeaking={isSpeaking} />}
+
+                                <button
+                                    className={`control-button camera-button ${!videoEnabled ? 'muted' : ''}`}
+                                    onClick={toggleVideo}
+                                    title={videoEnabled ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
+                                >
+                                    {videoEnabled ? '📷' : '📷'}
+                                </button>
+                                <button
+                                    className={`control-button screen-button ${isSharing ? 'active' : ''}`}
+                                    onClick={handleScreenShareClick}
+                                    title={isSharing ? 'Ekran Paylaşımını Durdur' : 'Ekran Paylaş'}
+                                >
+                                    🖥️
+                                </button>
+                                <button
+                                    className="control-button leave-button"
+                                    onClick={handleLeaveRoom}
+                                    title="Odadan Ayrıl"
+                                >
+                                    📴
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

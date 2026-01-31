@@ -1,0 +1,35 @@
+/* Volume Indicator Styles */
+
+.volume-indicator {
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 20px;
+    padding: 2px;
+}
+
+.volume-bar {
+    width: 3px;
+    background-color: var(--text-muted);
+    border-radius: 1px;
+    transition: background-color 0.1s ease;
+}
+
+.volume-bar.active {
+    background-color: var(--success);
+}
+
+.volume-indicator.speaking .volume-bar.active {
+    background-color: var(--accent);
+    animation: pulse-bar 0.5s infinite alternate;
+}
+
+@keyframes pulse-bar {
+    from {
+        opacity: 0.7;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
