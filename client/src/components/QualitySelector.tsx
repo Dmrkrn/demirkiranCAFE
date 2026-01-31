@@ -13,11 +13,11 @@ interface QualitySelectorProps {
     onQualityChange: (quality: QualityPreset) => void;
 }
 
-const qualityLabels: Record<QualityPreset, { label: string; icon: string }> = {
-    low: { label: '360p', icon: '📶' },
-    medium: { label: '720p', icon: '📶📶' },
-    high: { label: '1080p', icon: '📶📶📶' },
-    ultra: { label: '1080p 60fps', icon: '🔥' },
+const qualityLabels: Record<QualityPreset, string> = {
+    low: '360p',
+    medium: '720p',
+    high: '1080p',
+    ultra: '1080p 60fps',
 };
 
 export function QualitySelector({ currentQuality, onQualityChange }: QualitySelectorProps) {
@@ -28,9 +28,9 @@ export function QualitySelector({ currentQuality, onQualityChange }: QualitySele
                 value={currentQuality}
                 onChange={(e) => onQualityChange(e.target.value as QualityPreset)}
             >
-                {Object.entries(qualityLabels).map(([key, { label, icon }]) => (
+                {Object.entries(qualityLabels).map(([key, label]) => (
                     <option key={key} value={key}>
-                        {icon} {label}
+                        {label}
                     </option>
                 ))}
             </select>

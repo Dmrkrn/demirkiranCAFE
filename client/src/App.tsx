@@ -110,23 +110,19 @@ function App() {
             const transportsCreated = await createTransports();
             if (!transportsCreated) throw new Error('Transport oluşturulamadı');
 
-            console.log('📹 Adım 3: Kamera/mikrofon başlatılıyor...');
-            const stream = await startMedia();
-            if (!stream) throw new Error('Medya başlatılamadı');
+            // Adım 3: Sadece mikrofonu başlat (kamera kapalı kalacak)
+            console.log('🎤 Adım 3: Mikrofon başlatılıyor...');
+            const stream = await startMedia({ video: false, audio: true });
+            if (!stream) throw new Error('Mikrofon başlatılamadı');
 
-            console.log('🎬 Adım 4: Video produce ediliyor...');
-            const videoTrack = stream.getVideoTracks()[0];
-            if (videoTrack) {
-                await produceVideo(videoTrack);
-            }
-
-            console.log('🎤 Adım 5: Audio produce ediliyor...');
+            // Adım 4: Audio produce et
+            console.log('🎤 Adım 4: Audio produce ediliyor...');
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) {
                 await produceAudio(audioTrack);
             }
 
-            console.log('👀 Adım 6: Diğer kullanıcılar consume ediliyor...');
+            console.log('👀 Adım 5: Diğer kullanıcılar consume ediliyor...');
             await consumeAll();
 
             setIsJoined(true);
@@ -149,6 +145,34 @@ function App() {
         stopScreenShare();
         setIsJoined(false);
         console.log('👋 Odadan ayrıldın');
+    };
+
+    /**
+     * Kamera Toggle
+     * Kamera kapalıysa: kamerayı aç ve produce et
+     * Kamera açıksa: toggle et (track'i disable/enable yap)
+     */
+    const handleCameraToggle = async () => {
+        if (!videoEnabled && !localStream?.getVideoTracks().length) {
+            // İlk kez kamera açılıyor - getUserMedia ile video al
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const videoTrack = stream.getVideoTracks()[0];
+                if (videoTrack) {
+                    // Mevcut stream'e ekle
+                    localStream?.addTrack(videoTrack);
+                    // Produce et
+                    await produceVideo(videoTrack);
+                    console.log('📷 Kamera açıldı ve produce edildi');
+                }
+            } catch (error) {
+                console.error('❌ Kamera açılamadı:', error);
+                alert('Kamera açılamadı. İzin verildi mi?');
+            }
+        } else {
+            // Normal toggle
+            toggleVideo();
+        }
     };
 
     /**
@@ -231,10 +255,10 @@ function App() {
                 <div className="users-section">
                     <h3>Kullanıcılar</h3>
                     {isJoined && (
-                        <div className="user-item user-self">
+                        <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
                             <span className="user-avatar">👤</span>
                             <span className="user-name">{username} (Sen)</span>
-                            {audioEnabled && <span className="user-speaking">🎤</span>}
+                            {audioEnabled && <span className="user-mic-icon">🎤</span>}
                             {isSharing && <span className="user-sharing">🖥️</span>}
                         </div>
                     )}
@@ -248,12 +272,14 @@ function App() {
                 </div>
 
                 <div className="sidebar-footer">
-                    {isElectron && (
-                        <div className="electron-badge">🖥️ Electron</div>
+                    {isElectron && audioEnabled && (
+                        <div className="footer-volume">
+                            <VolumeIndicator volume={volume} isSpeaking={isSpeaking} />
+                        </div>
                     )}
-                    <div className="device-status">
-                        {isDeviceLoaded && '✅ Device hazır'}
-                    </div>
+                    {isElectron && (
+                        <div className="electron-badge">Electron</div>
+                    )}
                 </div>
             </aside>
 
@@ -354,12 +380,10 @@ function App() {
                                 >
                                     {audioEnabled ? '🎤' : '🔇'}
                                 </button>
-                                {/* Ses Seviyesi Göstergesi */}
-                                {audioEnabled && <VolumeIndicator volume={volume} isSpeaking={isSpeaking} />}
 
                                 <button
                                     className={`control-button camera-button ${!videoEnabled ? 'muted' : ''}`}
-                                    onClick={toggleVideo}
+                                    onClick={handleCameraToggle}
                                     title={videoEnabled ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
                                 >
                                     {videoEnabled ? '📷' : '📷'}
