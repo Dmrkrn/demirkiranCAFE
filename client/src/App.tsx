@@ -1,25 +1,28 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSocket, useMediasoup, useMediaDevices } from './hooks';
+import { useSocket, useMediasoup, useMediaDevices, useScreenShare } from './hooks';
+import { ScreenSharePicker } from './components/ScreenSharePicker';
 import './styles/App.css';
 
 /**
- * Ana Uygulama Bileşeni (Güncellenmiş)
- * ====================================
+ * Ana Uygulama Bileşeni (Ekran Paylaşımı Eklendi)
+ * ================================================
  * 
- * Artık gerçek WebRTC bağlantısı yapıyor:
  * 1. Socket.io ile sunucuya bağlan
  * 2. mediasoup Device'ı yükle
  * 3. Transport'ları oluştur
  * 4. Kamera/mikrofon produce et
  * 5. Diğer kullanıcıları consume et
+ * 6. Ekran paylaşımı (YENİ!)
  */
 function App() {
     const [username, setUsername] = useState('');
     const [isJoined, setIsJoined] = useState(false);
     const [joiningStatus, setJoiningStatus] = useState<'idle' | 'connecting' | 'error'>('idle');
+    const [showScreenPicker, setShowScreenPicker] = useState(false);
 
     // Video elementleri için ref
     const localVideoRef = useRef<HTMLVideoElement>(null);
+    const screenVideoRef = useRef<HTMLVideoElement>(null);
 
     // Custom Hooks
     const { isConnected, clientId, request } = useSocket();
@@ -44,6 +47,15 @@ function App() {
         closeAll,
     } = useMediasoup({ request });
 
+    const {
+        isSharing,
+        screenStream,
+        availableSources,
+        getSources,
+        startScreenShare,
+        stopScreenShare,
+    } = useScreenShare();
+
     // Electron API kontrolü
     const [isElectron, setIsElectron] = useState(false);
 
@@ -58,14 +70,15 @@ function App() {
         }
     }, [localStream]);
 
+    // Screen video'yu video elementine bağla
+    useEffect(() => {
+        if (screenVideoRef.current && screenStream) {
+            screenVideoRef.current.srcObject = screenStream;
+        }
+    }, [screenStream]);
+
     /**
      * Odaya Katıl
-     * -----------
-     * 1. Device'ı yükle (codec negotiation)
-     * 2. Transport'ları oluştur
-     * 3. Kamera/mikrofon başlat
-     * 4. Video/ses produce et
-     * 5. Diğerlerini consume et
      */
     const handleJoinRoom = async () => {
         if (!username.trim()) {
@@ -81,36 +94,30 @@ function App() {
         try {
             setJoiningStatus('connecting');
 
-            // Adım 1: Device'ı yükle
             console.log('📱 Adım 1: Device yükleniyor...');
             const deviceLoaded = await loadDevice();
             if (!deviceLoaded) throw new Error('Device yüklenemedi');
 
-            // Adım 2: Transport'ları oluştur
             console.log('🚇 Adım 2: Transport\'lar oluşturuluyor...');
             const transportsCreated = await createTransports();
             if (!transportsCreated) throw new Error('Transport oluşturulamadı');
 
-            // Adım 3: Kamera/mikrofon başlat
             console.log('📹 Adım 3: Kamera/mikrofon başlatılıyor...');
             const stream = await startMedia();
             if (!stream) throw new Error('Medya başlatılamadı');
 
-            // Adım 4: Video produce et
             console.log('🎬 Adım 4: Video produce ediliyor...');
             const videoTrack = stream.getVideoTracks()[0];
             if (videoTrack) {
                 await produceVideo(videoTrack);
             }
 
-            // Adım 5: Audio produce et
             console.log('🎤 Adım 5: Audio produce ediliyor...');
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) {
                 await produceAudio(audioTrack);
             }
 
-            // Adım 6: Mevcut producer'ları consume et
             console.log('👀 Adım 6: Diğer kullanıcılar consume ediliyor...');
             await consumeAll();
 
@@ -131,12 +138,67 @@ function App() {
     const handleLeaveRoom = () => {
         closeAll();
         stopMedia();
+        stopScreenShare();
         setIsJoined(false);
         console.log('👋 Odadan ayrıldın');
     };
 
+    /**
+     * Ekran Paylaşımı Başlat
+     */
+    const handleScreenShareClick = async () => {
+        if (isSharing) {
+            // Zaten paylaşıyorsa durdur
+            stopScreenShare();
+            return;
+        }
+
+        if (isElectron) {
+            // Electron'da picker göster
+            await getSources();
+            setShowScreenPicker(true);
+        } else {
+            // Tarayıcıda doğrudan getDisplayMedia kullan
+            const stream = await startScreenShare('');
+            if (stream) {
+                // Ekran paylaşımını produce et
+                const screenTrack = stream.getVideoTracks()[0];
+                if (screenTrack) {
+                    await produceVideo(screenTrack);
+                    console.log('🖥️ Ekran paylaşımı producer oluşturuldu');
+                }
+            }
+        }
+    };
+
+    /**
+     * Ekran kaynağı seçildiğinde
+     */
+    const handleScreenSourceSelect = async (sourceId: string) => {
+        setShowScreenPicker(false);
+
+        const stream = await startScreenShare(sourceId);
+        if (stream) {
+            // Ekran paylaşımını produce et
+            const screenTrack = stream.getVideoTracks()[0];
+            if (screenTrack) {
+                await produceVideo(screenTrack);
+                console.log('🖥️ Ekran paylaşımı producer oluşturuldu');
+            }
+        }
+    };
+
     return (
         <div className="app">
+            {/* Ekran Paylaşımı Picker Modal */}
+            {showScreenPicker && (
+                <ScreenSharePicker
+                    sources={availableSources}
+                    onSelect={handleScreenSourceSelect}
+                    onCancel={() => setShowScreenPicker(false)}
+                />
+            )}
+
             {/* Sol Sidebar */}
             <aside className="sidebar">
                 <div className="logo">
@@ -165,9 +227,9 @@ function App() {
                             <span className="user-avatar">👤</span>
                             <span className="user-name">{username} (Sen)</span>
                             {audioEnabled && <span className="user-speaking">🎤</span>}
+                            {isSharing && <span className="user-sharing">🖥️</span>}
                         </div>
                     )}
-                    {/* Diğer kullanıcılar consumer listesinden gelecek */}
                     {consumers.map((consumer) => (
                         <div key={consumer.id} className="user-item">
                             <span className="user-avatar">👤</span>
@@ -243,6 +305,20 @@ function App() {
                                 <div className="video-label">{username} (Sen)</div>
                             </div>
 
+                            {/* Ekran paylaşımı video'su */}
+                            {isSharing && screenStream && (
+                                <div className="video-container screen-share-video">
+                                    <video
+                                        ref={screenVideoRef}
+                                        autoPlay
+                                        muted
+                                        playsInline
+                                        className="video-element"
+                                    />
+                                    <div className="video-label">🖥️ Ekran Paylaşımı</div>
+                                </div>
+                            )}
+
                             {/* Diğer kullanıcıların video'ları */}
                             {consumers
                                 .filter(c => c.kind === 'video')
@@ -271,9 +347,9 @@ function App() {
                                 {videoEnabled ? '📷' : '📷'}
                             </button>
                             <button
-                                className="control-button screen-button"
-                                title="Ekran Paylaş"
-                                onClick={() => {/* TODO: Ekran paylaşımı */ }}
+                                className={`control-button screen-button ${isSharing ? 'active' : ''}`}
+                                onClick={handleScreenShareClick}
+                                title={isSharing ? 'Ekran Paylaşımını Durdur' : 'Ekran Paylaş'}
                             >
                                 🖥️
                             </button>
@@ -294,7 +370,6 @@ function App() {
 
 /**
  * Video Player Bileşeni
- * Gelen MediaStream'i video elementine bağlar
  */
 function VideoPlayer({ stream }: { stream: MediaStream }) {
     const videoRef = useRef<HTMLVideoElement>(null);
