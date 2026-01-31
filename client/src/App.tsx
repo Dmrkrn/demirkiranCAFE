@@ -1,50 +1,143 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useSocket, useMediasoup, useMediaDevices } from './hooks';
 import './styles/App.css';
 
 /**
- * Ana Uygulama Bileşeni
- * =====================
+ * Ana Uygulama Bileşeni (Güncellenmiş)
+ * ====================================
  * 
- * Bu, uygulamanın ana React bileşenidir.
- * Şimdilik basit bir "bağlantı" ekranı göstereceğiz.
- * 
- * İlerleyen adımlarda:
- * - Socket.io bağlantısı
- * - Mediasoup-client entegrasyonu
- * - Video grid UI
+ * Artık gerçek WebRTC bağlantısı yapıyor:
+ * 1. Socket.io ile sunucuya bağlan
+ * 2. mediasoup Device'ı yükle
+ * 3. Transport'ları oluştur
+ * 4. Kamera/mikrofon produce et
+ * 5. Diğer kullanıcıları consume et
  */
 function App() {
-    const [isConnected, setIsConnected] = useState(false);
     const [username, setUsername] = useState('');
-    const [roomStatus, setRoomStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle');
+    const [isJoined, setIsJoined] = useState(false);
+    const [joiningStatus, setJoiningStatus] = useState<'idle' | 'connecting' | 'error'>('idle');
+
+    // Video elementleri için ref
+    const localVideoRef = useRef<HTMLVideoElement>(null);
+
+    // Custom Hooks
+    const { isConnected, clientId, request } = useSocket();
+    const {
+        localStream,
+        videoEnabled,
+        audioEnabled,
+        startMedia,
+        stopMedia,
+        toggleVideo,
+        toggleAudio
+    } = useMediaDevices();
+
+    const {
+        isDeviceLoaded,
+        consumers,
+        loadDevice,
+        createTransports,
+        produceVideo,
+        produceAudio,
+        consumeAll,
+        closeAll,
+    } = useMediasoup({ request });
 
     // Electron API kontrolü
     const [isElectron, setIsElectron] = useState(false);
 
     useEffect(() => {
-        // Electron içinde mi çalışıyoruz?
         setIsElectron(typeof window !== 'undefined' && 'electronAPI' in window);
     }, []);
 
-    const handleConnect = () => {
+    // Local video'yu video elementine bağla
+    useEffect(() => {
+        if (localVideoRef.current && localStream) {
+            localVideoRef.current.srcObject = localStream;
+        }
+    }, [localStream]);
+
+    /**
+     * Odaya Katıl
+     * -----------
+     * 1. Device'ı yükle (codec negotiation)
+     * 2. Transport'ları oluştur
+     * 3. Kamera/mikrofon başlat
+     * 4. Video/ses produce et
+     * 5. Diğerlerini consume et
+     */
+    const handleJoinRoom = async () => {
         if (!username.trim()) {
             alert('Lütfen bir kullanıcı adı girin!');
             return;
         }
 
-        setRoomStatus('connecting');
+        if (!isConnected) {
+            alert('Sunucuya bağlı değil! Backend çalışıyor mu?');
+            return;
+        }
 
-        // TODO: Socket.io bağlantısı burada yapılacak
-        // Şimdilik simüle ediyoruz
-        setTimeout(() => {
-            setRoomStatus('connected');
-            setIsConnected(true);
-        }, 1000);
+        try {
+            setJoiningStatus('connecting');
+
+            // Adım 1: Device'ı yükle
+            console.log('📱 Adım 1: Device yükleniyor...');
+            const deviceLoaded = await loadDevice();
+            if (!deviceLoaded) throw new Error('Device yüklenemedi');
+
+            // Adım 2: Transport'ları oluştur
+            console.log('🚇 Adım 2: Transport\'lar oluşturuluyor...');
+            const transportsCreated = await createTransports();
+            if (!transportsCreated) throw new Error('Transport oluşturulamadı');
+
+            // Adım 3: Kamera/mikrofon başlat
+            console.log('📹 Adım 3: Kamera/mikrofon başlatılıyor...');
+            const stream = await startMedia();
+            if (!stream) throw new Error('Medya başlatılamadı');
+
+            // Adım 4: Video produce et
+            console.log('🎬 Adım 4: Video produce ediliyor...');
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+                await produceVideo(videoTrack);
+            }
+
+            // Adım 5: Audio produce et
+            console.log('🎤 Adım 5: Audio produce ediliyor...');
+            const audioTrack = stream.getAudioTracks()[0];
+            if (audioTrack) {
+                await produceAudio(audioTrack);
+            }
+
+            // Adım 6: Mevcut producer'ları consume et
+            console.log('👀 Adım 6: Diğer kullanıcılar consume ediliyor...');
+            await consumeAll();
+
+            setIsJoined(true);
+            setJoiningStatus('idle');
+            console.log('✅ Odaya başarıyla katıldın!');
+
+        } catch (error) {
+            console.error('❌ Odaya katılma hatası:', error);
+            setJoiningStatus('error');
+            alert(`Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+        }
+    };
+
+    /**
+     * Odadan Ayrıl
+     */
+    const handleLeaveRoom = () => {
+        closeAll();
+        stopMedia();
+        setIsJoined(false);
+        console.log('👋 Odadan ayrıldın');
     };
 
     return (
         <div className="app">
-            {/* Sol Sidebar - Kullanıcı listesi */}
+            {/* Sol Sidebar */}
             <aside className="sidebar">
                 <div className="logo">
                     <span className="logo-icon">☕</span>
@@ -54,37 +147,49 @@ function App() {
                 <div className="room-info">
                     <div className="room-name">Ana Oda</div>
                     <div className="room-status">
-                        {roomStatus === 'connected' ? (
-                            <span className="status-connected">● Bağlı</span>
+                        {isConnected ? (
+                            <span className="status-connected">● Sunucuya Bağlı</span>
                         ) : (
-                            <span className="status-disconnected">○ Bağlı Değil</span>
+                            <span className="status-disconnected">○ Bağlantı Yok</span>
                         )}
                     </div>
+                    {clientId && (
+                        <div className="client-id">ID: {clientId.slice(0, 8)}...</div>
+                    )}
                 </div>
 
                 <div className="users-section">
                     <h3>Kullanıcılar</h3>
-                    {isConnected && (
-                        <div className="user-item">
+                    {isJoined && (
+                        <div className="user-item user-self">
                             <span className="user-avatar">👤</span>
-                            <span className="user-name">{username}</span>
-                            <span className="user-speaking">🎤</span>
+                            <span className="user-name">{username} (Sen)</span>
+                            {audioEnabled && <span className="user-speaking">🎤</span>}
                         </div>
                     )}
+                    {/* Diğer kullanıcılar consumer listesinden gelecek */}
+                    {consumers.map((consumer) => (
+                        <div key={consumer.id} className="user-item">
+                            <span className="user-avatar">👤</span>
+                            <span className="user-name">Kullanıcı</span>
+                            <span className="user-media">{consumer.kind === 'video' ? '📹' : '🎤'}</span>
+                        </div>
+                    ))}
                 </div>
 
                 <div className="sidebar-footer">
                     {isElectron && (
-                        <div className="electron-badge">
-                            🖥️ Electron Uygulaması
-                        </div>
+                        <div className="electron-badge">🖥️ Electron</div>
                     )}
+                    <div className="device-status">
+                        {isDeviceLoaded && '✅ Device hazır'}
+                    </div>
                 </div>
             </aside>
 
-            {/* Ana İçerik - Video Grid veya Bağlantı Ekranı */}
+            {/* Ana İçerik */}
             <main className="main-content">
-                {!isConnected ? (
+                {!isJoined ? (
                     <div className="connect-screen">
                         <div className="connect-card">
                             <h1>Hoş Geldin!</h1>
@@ -95,42 +200,88 @@ function App() {
                                 placeholder="Kullanıcı Adı"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleConnect()}
+                                onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
                                 className="username-input"
+                                disabled={joiningStatus === 'connecting'}
                             />
 
                             <button
-                                onClick={handleConnect}
+                                onClick={handleJoinRoom}
                                 className="connect-button"
-                                disabled={roomStatus === 'connecting'}
+                                disabled={joiningStatus === 'connecting' || !isConnected}
                             >
-                                {roomStatus === 'connecting' ? 'Bağlanıyor...' : 'Odaya Katıl'}
+                                {joiningStatus === 'connecting' ? 'Bağlanıyor...' :
+                                    !isConnected ? 'Sunucu Bekleniyor...' : 'Odaya Katıl'}
                             </button>
+
+                            {!isConnected && (
+                                <p className="warning-text">
+                                    ⚠️ Backend'e bağlanılamıyor. <code>npm run start:dev</code> çalışıyor mu?
+                                </p>
+                            )}
                         </div>
                     </div>
                 ) : (
                     <div className="room-view">
                         <div className="video-grid">
-                            {/* Video elementleri buraya gelecek */}
-                            <div className="video-placeholder">
-                                <div className="placeholder-avatar">👤</div>
-                                <div className="placeholder-name">{username}</div>
-                                <div className="placeholder-text">Kamera kapalı</div>
+                            {/* Kendi video'muz */}
+                            <div className="video-container self-video">
+                                <video
+                                    ref={localVideoRef}
+                                    autoPlay
+                                    muted
+                                    playsInline
+                                    className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
+                                />
+                                {!videoEnabled && (
+                                    <div className="video-placeholder-content">
+                                        <div className="placeholder-avatar">👤</div>
+                                        <div className="placeholder-name">{username}</div>
+                                        <div className="placeholder-text">Kamera kapalı</div>
+                                    </div>
+                                )}
+                                <div className="video-label">{username} (Sen)</div>
                             </div>
+
+                            {/* Diğer kullanıcıların video'ları */}
+                            {consumers
+                                .filter(c => c.kind === 'video')
+                                .map((consumer) => (
+                                    <div key={consumer.id} className="video-container">
+                                        <VideoPlayer stream={consumer.stream} />
+                                        <div className="video-label">Kullanıcı</div>
+                                    </div>
+                                ))}
                         </div>
 
-                        {/* Alt Kontrol Çubuğu */}
+                        {/* Kontrol Çubuğu */}
                         <div className="control-bar">
-                            <button className="control-button mic-button" title="Mikrofon">
-                                🎤
+                            <button
+                                className={`control-button mic-button ${!audioEnabled ? 'muted' : ''}`}
+                                onClick={toggleAudio}
+                                title={audioEnabled ? 'Mikrofonu Kapat' : 'Mikrofonu Aç'}
+                            >
+                                {audioEnabled ? '🎤' : '🔇'}
                             </button>
-                            <button className="control-button camera-button" title="Kamera">
-                                📷
+                            <button
+                                className={`control-button camera-button ${!videoEnabled ? 'muted' : ''}`}
+                                onClick={toggleVideo}
+                                title={videoEnabled ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
+                            >
+                                {videoEnabled ? '📷' : '📷'}
                             </button>
-                            <button className="control-button screen-button" title="Ekran Paylaş">
+                            <button
+                                className="control-button screen-button"
+                                title="Ekran Paylaş"
+                                onClick={() => {/* TODO: Ekran paylaşımı */ }}
+                            >
                                 🖥️
                             </button>
-                            <button className="control-button leave-button" title="Ayrıl" onClick={() => setIsConnected(false)}>
+                            <button
+                                className="control-button leave-button"
+                                onClick={handleLeaveRoom}
+                                title="Odadan Ayrıl"
+                            >
                                 📴
                             </button>
                         </div>
@@ -138,6 +289,29 @@ function App() {
                 )}
             </main>
         </div>
+    );
+}
+
+/**
+ * Video Player Bileşeni
+ * Gelen MediaStream'i video elementine bağlar
+ */
+function VideoPlayer({ stream }: { stream: MediaStream }) {
+    const videoRef = useRef<HTMLVideoElement>(null);
+
+    useEffect(() => {
+        if (videoRef.current) {
+            videoRef.current.srcObject = stream;
+        }
+    }, [stream]);
+
+    return (
+        <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            className="video-element"
+        />
     );
 }
 

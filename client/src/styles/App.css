@@ -280,3 +280,96 @@
 .control-button.leave-button:hover {
     background-color: var(--error);
 }
+
+/* Muted state for buttons */
+.control-button.muted {
+    background-color: var(--error);
+    opacity: 0.8;
+}
+
+/* ============================================
+   VIDEO CONTAINER
+   ============================================ */
+.video-container {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background-color: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 2px solid transparent;
+    transition: border-color var(--transition-fast);
+}
+
+.video-container:hover {
+    border-color: var(--accent);
+}
+
+.video-container.self-video {
+    border-color: var(--success);
+}
+
+.video-element {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.video-element.hidden {
+    display: none;
+}
+
+.video-placeholder-content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+}
+
+.video-label {
+    position: absolute;
+    bottom: var(--spacing-sm);
+    left: var(--spacing-sm);
+    background-color: rgba(0, 0, 0, 0.6);
+    padding: var(--spacing-xs) var(--spacing-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+}
+
+/* Warning text */
+.warning-text {
+    margin-top: var(--spacing-md);
+    color: var(--warning);
+    font-size: var(--font-size-sm);
+}
+
+.warning-text code {
+    background-color: var(--bg-primary);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+}
+
+/* Client ID */
+.client-id {
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    margin-top: var(--spacing-xs);
+}
+
+/* Device status */
+.device-status {
+    font-size: var(--font-size-xs);
+    color: var(--success);
+    margin-top: var(--spacing-xs);
+}
+
+/* User self indicator */
+.user-self {
+    background-color: rgba(74, 222, 128, 0.1);
+}
+
+.user-media {
+    opacity: 0.7;
+}
