@@ -223,6 +223,8 @@ private readonly ROOM_PASSWORD = 'sifreniz';
 **Dmrkrn**
 
 - GitHub: [@Dmrkrn](https://github.com/Dmrkrn)
+- LinkedIn: [@Dmrkrn](https://www.linkedin.com/in/dmrkrn/)
+- Portfolio: [@Dmrkrn](https://dmrkrn.com/)
 
 ---
 
@@ -231,7 +233,3 @@ private readonly ROOM_PASSWORD = 'sifreniz';
 Bu proje [MIT](LICENSE) lisansı altında lisanslanmıştır.
 
 ---
-
-<p align="center">
-  Made with ❤️ by Dmrkrn
-</p>

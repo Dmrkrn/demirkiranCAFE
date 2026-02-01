@@ -14,8 +14,9 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// Sunucu adresi (geliştirme için localhost)
-const SERVER_URL = 'http://localhost:3000';
+// Sunucu adresi (localhost yerine Yerel IP kullanıyoruz ki arkadaşlar bağlanabilsin)
+// DİKKAT: IP adresi değişirse burayı güncellemen gerekir! (ipconfig ile bak)
+const SERVER_URL = 'http://192.168.1.105:3000';
 
 interface ChatMessage {
     id: string;

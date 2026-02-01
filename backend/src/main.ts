@@ -13,8 +13,9 @@ async function bootstrap() {
     });
 
     const port = process.env.PORT ?? 3000;
-    await app.listen(port);
+    await app.listen(port, '0.0.0.0');
     console.log(`✅ Backend çalışıyor: http://localhost:${port}`);
+    console.log(`📡 Ağ Erişimi: http://${require('os').networkInterfaces()['Wi-Fi']?.[1]?.address || 'IP_ADRESINIZ'}:${port}`);
   } catch (error) {
     console.error('❌ Backend başlatma hatası:', error);
     process.exit(1);
