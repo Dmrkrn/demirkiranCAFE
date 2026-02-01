@@ -28,13 +28,28 @@ log.info('App starting...');
 // Development modunda mı?
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-// Electron Audio/WebRTC optimizasyonları
-app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
+// Electron Audio/WebRTC Gelişmiş Optimizasyonlar
+// ===============================================
+
+// WebRTC Hardware Acceleration
 app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
 app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
+app.commandLine.appendSwitch('enable-webrtc-hw-h264-encoding');
+
+// Audio Latency & Processing
+app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer,AudioServiceOutOfProcess');
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,AudioServiceSandbox');
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
+// Background Throttling Disable (Ses kesilmelerini önler)
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+
+// GPU & Rendering
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
 
 // Auto-updater ayarları
 autoUpdater.autoDownload = true;
