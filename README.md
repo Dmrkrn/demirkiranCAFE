@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.7-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.0.4-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
@@ -31,8 +31,8 @@
 </div>
 <div align="center">
   <br/>
-  <h3>Yeni Arayüz (v1.0.7)</h3>
-  <img src="README_assets/screenshot_v1.0.7.png" width="80%" alt="v1.0.7 Arayüzü">
+  <h3>Yeni Arayüz (v1.0.4)</h3>
+  <img src="README_assets/screenshot_v1.0.7.png" width="80%" alt="v1.0.4 Arayüzü">
 </div>
 
 ---
@@ -209,7 +209,7 @@ ROOM_PASSWORD=istediğiniz_zor_sifre
 
 ## 📝 Güncelleme Geçmişi
 
-### v1.0.7 (2026-02-02)
+### v1.0.4 (2026-02-02)
 - 🎨 **Arayüz İyileştirmeleri**: İkonlar yenilendi ve hizalama sorunları giderildi.
 - 🎛️ **Gelişmiş Ses Kontrolü**: Kullanıcı bazlı ses seviyesi ayarı eklendi.
 - 🖥️ **Tam Ekran Modu**: Videolara tıklayarak tam ekran yapabilme özelliği.
