@@ -418,13 +418,9 @@ function App() {
                                                     key={msg.id}
                                                     className={`chat-msg ${isOwnMessage ? 'own' : ''}`}
                                                 >
-                                                    {!isOwnMessage && (
-                                                        <Avatar name={msg.senderName} size="sm" />
-                                                    )}
+                                                    <Avatar name={msg.senderName} size="sm" />
                                                     <div className="msg-content">
-                                                        {!isOwnMessage && (
-                                                            <span className="msg-sender">{msg.senderName}</span>
-                                                        )}
+                                                        <span className="msg-sender">{msg.senderName}</span>
                                                         <div className="msg-bubble">{msg.message}</div>
                                                     </div>
                                                 </div>

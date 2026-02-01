@@ -312,6 +312,13 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+    /* Default: Zoom/Fill for Camera */
+}
+
+/* Screen share should fit to show all text/content */
+.screen-share-video .video-element {
+    object-fit: contain;
+    background-color: #000;
 }
 
 .video-element.hidden {
@@ -543,24 +550,35 @@
 .chat-msg {
     display: flex;
     gap: var(--spacing-sm);
-    max-width: 90%;
+    align-items: flex-start;
 }
 
 .chat-msg.own {
-    align-self: flex-end;
     flex-direction: row-reverse;
+}
+
+.chat-msg.own .msg-content {
+    align-items: flex-end;
 }
 
 .msg-content {
     display: flex;
     flex-direction: column;
     gap: 2px;
+    max-width: 80%;
 }
 
 .msg-sender {
     font-size: var(--font-size-xs);
-    color: var(--text-muted);
+    color: var(--accent);
+    font-weight: 500;
     margin-left: 4px;
+}
+
+.chat-msg.own .msg-sender {
+    margin-left: 0;
+    margin-right: 4px;
+    color: var(--success);
 }
 
 .msg-bubble {
