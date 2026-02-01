@@ -39,6 +39,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     minimizeWindow: () => ipcRenderer.send('window-minimize'),
     maximizeWindow: () => ipcRenderer.send('window-maximize'),
     closeWindow: () => ipcRenderer.send('window-close'),
+
+    /**
+     * Güncelleme Kontrolleri
+     */
+    onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (_event, info) => callback(info)),
+    onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (_event, progress) => callback(progress)),
+    onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (_event, info) => callback(info)),
+    installUpdate: () => ipcRenderer.send('install-update'),
 });
 
 // Window nesnesine eklediğimizi TypeScript'e bildirmek için

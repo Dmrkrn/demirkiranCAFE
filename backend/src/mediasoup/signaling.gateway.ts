@@ -294,14 +294,24 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         return { success: true };
     }
 
+    // Oda şifresi (basit güvenlik)
+    private readonly ROOM_PASSWORD = '19071907';
+
     /**
-     * Kullanıcı adını ayarla
+     * Kullanıcı adını ayarla ve odaya katıl
+     * Şifre kontrolü yapılır
      */
     @SubscribeMessage('setUsername')
     handleSetUsername(
         @ConnectedSocket() client: Socket,
-        @MessageBody() data: { username: string },
+        @MessageBody() data: { username: string; password?: string },
     ) {
+        // Şifre kontrolü
+        if (data.password !== this.ROOM_PASSWORD) {
+            this.logger.warn(`🚫 Yanlış şifre denemesi: ${client.id}`);
+            return { success: false, error: 'Yanlış şifre!' };
+        }
+
         const clientInfo = this.clients.get(client.id);
         if (clientInfo) {
             clientInfo.username = data.username;

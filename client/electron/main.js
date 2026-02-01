@@ -17,9 +17,14 @@
 
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
 
 // Development modunda mı?
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
+
+// Auto-updater ayarları
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
 
 /**
  * Ana pencereyi oluştur
@@ -83,6 +88,36 @@ function createWindow() {
         mainWindow.close();
     });
 
+    /**
+     * Auto-Updater Event'leri
+     */
+    autoUpdater.on('checking-for-update', () => {
+        console.log('🔍 Güncelleme kontrol ediliyor...');
+    });
+
+    autoUpdater.on('update-available', (info) => {
+        console.log('✅ Güncelleme mevcut:', info.version);
+        mainWindow.webContents.send('update-available', info);
+    });
+
+    autoUpdater.on('update-not-available', () => {
+        console.log('ℹ️ Uygulama güncel');
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+        console.log(`📥 İndiriliyor: ${Math.round(progress.percent)}%`);
+        mainWindow.webContents.send('update-progress', progress);
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+        console.log('📦 Güncelleme indirildi, yeniden başlatılacak');
+        mainWindow.webContents.send('update-downloaded', info);
+    });
+
+    autoUpdater.on('error', (err) => {
+        console.error('❌ Güncelleme hatası:', err);
+    });
+
     return mainWindow;
 }
 
@@ -92,12 +127,22 @@ function createWindow() {
 app.whenReady().then(() => {
     createWindow();
 
+    // Production'da güncelleme kontrolü yap
+    if (!isDev) {
+        autoUpdater.checkForUpdatesAndNotify();
+    }
+
     // macOS: Dock'a tıklandığında pencere yoksa yenisini aç
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
         }
     });
+});
+
+// IPC: Güncellemeyi yükle ve uygulamayı yeniden başlat
+ipcMain.on('install-update', () => {
+    autoUpdater.quitAndInstall();
 });
 
 /**

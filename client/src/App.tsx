@@ -2,9 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActivity, useQualitySettings, usePing } from './hooks';
 import { ScreenSharePicker } from './components/ScreenSharePicker';
 import { QualitySelector } from './components/QualitySelector';
-import { VolumeIndicator } from './components/VolumeIndicator';
 import { Avatar } from './components/Avatar';
-import { ChatPanel } from './components/ChatPanel';
 import { TitleBar } from './components/TitleBar';
 import { PingMeter } from './components/PingMeter';
 import { SettingsPanel, loadKeybinds } from './components/SettingsPanel';
@@ -24,12 +22,12 @@ import './styles/App.css';
  */
 function App() {
     const [username, setUsername] = useState('');
+    const [roomPassword, setRoomPassword] = useState('');
     const [isJoined, setIsJoined] = useState(false);
     const [joiningStatus, setJoiningStatus] = useState<'idle' | 'connecting' | 'error'>('idle');
     const [showScreenPicker, setShowScreenPicker] = useState(false);
 
     // Chat state
-    const [isChatOpen, setIsChatOpen] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [isDeafened, setIsDeafened] = useState(false);
     const [chatMessages, setChatMessages] = useState<Array<{
@@ -57,7 +55,6 @@ function App() {
     } = useMediaDevices();
 
     const {
-        isDeviceLoaded,
         consumers,
         loadDevice,
         createTransports,
@@ -77,10 +74,10 @@ function App() {
     } = useScreenShare();
 
     // VAD (Voice Activity Detection)
-    const { isSpeaking, volume } = useVoiceActivity({ stream: localStream });
+    const { isSpeaking } = useVoiceActivity({ stream: localStream });
 
-    // Kalite Ayarları
-    const { currentQuality, setQuality, getConstraints } = useQualitySettings();
+    // Kalite Ayırları
+    const { currentQuality, setQuality } = useQualitySettings();
 
     // Ping Ölçer
     const { ping, pingStatus } = usePing();
@@ -216,8 +213,12 @@ function App() {
             console.log('👀 Adım 5: Diğer kullanıcılar consume ediliyor...');
             await consumeAll();
 
-            // Adım 6: Kullanıcı adını sunucuya gönder (sohbet için)
-            emit('setUsername', { username });
+            // Adım 6: Kullanıcı adını ve şifreyi sunucuya gönder
+            const response = await request('setUsername', { username, password: roomPassword }) as { success: boolean; error?: string };
+
+            if (!response || !response.success) {
+                throw new Error(response?.error || 'Odaya katılınamadı');
+            }
 
             setIsJoined(true);
             setJoiningStatus('idle');
@@ -417,15 +418,24 @@ function App() {
                         <div className="connect-screen">
                             <div className="connect-card">
                                 <h1>Hoş Geldin!</h1>
-                                <p>Odaya katılmak için kullanıcı adını gir</p>
+                                <p>Odaya katılmak için bilgilerini gir</p>
 
                                 <input
                                     type="text"
                                     placeholder="Kullanıcı Adı"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
                                     className="username-input"
+                                    disabled={joiningStatus === 'connecting'}
+                                />
+
+                                <input
+                                    type="password"
+                                    placeholder="Oda Şifresi"
+                                    value={roomPassword}
+                                    onChange={(e) => setRoomPassword(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
+                                    className="username-input password-input"
                                     disabled={joiningStatus === 'connecting'}
                                 />
 
