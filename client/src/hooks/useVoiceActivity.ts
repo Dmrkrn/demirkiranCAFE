@@ -38,8 +38,8 @@ interface UseVoiceActivityReturn {
 
 export function useVoiceActivity({
     stream,
-    threshold = 30,
-    smoothingTimeConstant = 0.8,
+    threshold = 10,              // Daha hassas (Fısıltıyı bile algılar)
+    smoothingTimeConstant = 0.1, // Çok hızlı tepki (Gecikme yok)
 }: UseVoiceActivityProps): UseVoiceActivityReturn {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [volume, setVolume] = useState(0);
