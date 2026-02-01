@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import logo from './assets/logo.png';
 import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActivity, useQualitySettings, usePing } from './hooks';
 import { useAudioLevel } from './hooks/useAudioLevel';
@@ -9,6 +9,7 @@ import { TitleBar } from './components/TitleBar';
 import { PingMeter } from './components/PingMeter';
 import { SettingsPanel, loadKeybinds } from './components/SettingsPanel';
 import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound } from './utils/sounds';
+import { MicIcon, MicOffIcon, HeadphonessIcon, HeadphonesOffIcon, VideoIcon } from './components/Icons';
 import './styles/App.css';
 
 /**
@@ -418,13 +419,9 @@ function App() {
                                         title={audioEnabled ? 'Mikrofonu Kapat (M)' : 'Mikrofonu Aç (M)'}
                                     >
                                         {audioEnabled ? (
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm-1-9c0-.55.45-1 1-1s1 .45 1 1v6c0 .55-.45 1-1 1s-1-.45-1-1V5zm6 6c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z" />
-                                            </svg>
+                                            <MicIcon />
                                         ) : (
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z" />
-                                            </svg>
+                                            <MicOffIcon />
                                         )}
                                     </button>
                                     <button
@@ -432,17 +429,13 @@ function App() {
                                         onClick={handleToggleDeafen}
                                         title={isDeafened ? 'Sesi Aç (D)' : 'Sesi Kapat (D)'}
                                     >
-                                        {isDeafened ? (
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M4.34 2.93L2.93 4.34 7.29 8.7 7 9H3v6h4l5 5v-6.59l4.18 4.18c-.65.49-1.38.88-2.18 1.11v2.06c1.34-.3 2.57-.92 3.61-1.75l2.05 2.05 1.41-1.41L4.34 2.93zM19 12c0 .82-.15 1.61-.41 2.34l1.53 1.53c.56-1.17.88-2.48.88-3.87 0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zm-7-8l-1.88 1.88L12 7.76zm4.5 8c0-1.77-1.02-3.29-2.5-4.03v1.79l2.48 2.48c.01-.08.02-.16.02-.24z" />
-                                            </svg>
-                                        ) : (
-                                            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                                                <path d="M12 3c-4.97 0-9 4.03-9 9v7c0 1.1.9 2 2 2h4v-8H5v-1c0-3.87 3.13-7 7-7s7 3.13 7 7v1h-4v8h4c1.1 0 2-.9 2-2v-7c0-4.97-4.03-9-9-9z" />
-                                            </svg>
-                                        )}
+                                        {isDeafened ? <HeadphonesOffIcon /> : <HeadphonessIcon />}
                                     </button>
-                                    {isSharing && <span className="user-sharing">🖥️</span>}
+                                    {isSharing && (
+                                        <span className="status-icon" title="Ekran Paylaşıyor">
+                                            🖥️
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -538,7 +531,19 @@ function App() {
 
                                         {/* Ekran paylaşımı video'su */}
                                         {isSharing && screenStream && (
-                                            <div className="video-container screen-share-video">
+                                            <div
+                                                className="video-container screen-share-video"
+                                                onClick={(e) => {
+                                                    const target = e.currentTarget;
+                                                    if (document.fullscreenElement) {
+                                                        document.exitFullscreen();
+                                                    } else {
+                                                        target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+                                                    }
+                                                }}
+                                                title="Tam ekran için tıkla"
+                                                style={{ cursor: 'pointer' }}
+                                            >
                                                 <video
                                                     ref={screenVideoRef}
                                                     autoPlay
@@ -556,7 +561,20 @@ function App() {
                                             .map((consumer) => {
                                                 const peerName = peers.find(p => p.id === consumer.peerId)?.username || 'Kullanıcı';
                                                 return (
-                                                    <div key={consumer.id} className="video-container">
+                                                    <div
+                                                        key={consumer.id}
+                                                        className={`video-container ${consumer.kind === 'video' ? 'remote-video' : ''}`}
+                                                        onClick={(e) => {
+                                                            const target = e.currentTarget;
+                                                            if (document.fullscreenElement) {
+                                                                document.exitFullscreen();
+                                                            } else {
+                                                                target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+                                                            }
+                                                        }}
+                                                        title="Tam ekran için tıkla"
+                                                        style={{ cursor: 'pointer' }}
+                                                    >
                                                         <VideoPlayer stream={consumer.stream} />
                                                         <div className="video-label">{peerName}</div>
                                                     </div>
@@ -766,6 +784,17 @@ function SidebarPeer({
     // Sağ tık menüsü state'i (basitçe her zaman gösterilen slider yerine hover ile gösterilebilir, ama şimdilik inline yapalım)
     const [showVolume, setShowVolume] = useState(false);
 
+    // Screen share durumu için consumer kontrolü
+    const hasScreen = peerConsumers.some(c => c.stream?.getVideoTracks()[0]?.label?.toLowerCase().includes('screen') || c.appData?.source === 'screen');
+    // Not: Mediasoup consumer appData kullanmak daha garantidir ama şimdilik video track kontrolü veya 'user-sharing' class'ı App.tsx'den gelmiyor,
+    // App.tsx'de isSharing local için var. Remote peer için screen share iconunu nasıl anlıyoruz?
+    // Mevcut kodda sidebar'da screen share iconu GÖSTERİLMİYORDU (remote peer için).
+    // Ancak user "o ikonu soldaki menüye koy" dedi, bu kendi ikonumuz için mi?
+    // Evet, App.tsx'de kendi kullanıcı bölümümüz için:
+    /*
+        {isSharing && <span className="user-sharing"><ScreenShareIcon /></span>}
+    */
+
     return (
         <div
             className={`user-item ${isSpeaking ? 'speaking' : ''}`}
@@ -776,11 +805,24 @@ function SidebarPeer({
             <div className="user-info-col" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span className="user-name">{peer.username}</span>
-                    <span className="user-media">
-                        {hasVideo && '📹'}
-                        {peer.isMicMuted ? '🔴' : (audioConsumer ? '🎤' : '')}
-                        {peer.isDeafened && '🔇'}
-                    </span>
+                    <div className="user-status-icons">
+                        <span className={`status-icon ${peer.isMicMuted ? 'muted' : ''}`} title={peer.isMicMuted ? 'Mikrofon Kapalı' : 'Mikrofon Açık'}>
+                            {peer.isMicMuted ? <MicOffIcon size={16} /> : (audioConsumer ? <MicIcon size={16} /> : <MicOffIcon size={16} style={{ opacity: 0.5 }} />)}
+                        </span>
+                        <span className={`status-icon ${peer.isDeafened ? 'muted' : ''}`} title={peer.isDeafened ? 'Ses Kapalı' : 'Ses Açık'}>
+                            {peer.isDeafened ? <HeadphonesOffIcon size={16} /> : <HeadphonessIcon size={16} />}
+                        </span>
+                        {hasVideo &&
+                            <span className="status-icon" title="Kamera Açık">
+                                <VideoIcon size={16} />
+                            </span>
+                        }
+                        {hasScreen &&
+                            <span className="status-icon" title="Ekran Paylaşıyor">
+                                🖥️
+                            </span>
+                        }
+                    </div>
                 </div>
                 {/* Volume Slider - Hover yapınca veya volume değişmişse göster */}
                 {(showVolume || volume !== 100) && audioConsumer && (

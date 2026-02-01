@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.0.7-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
@@ -28,6 +28,11 @@
 <div align="center">
   <img src="screenshots/screenshare.png" width="45%" alt="Ekran Paylaşımı">
   <img src="screenshots/settings.png" width="45%" alt="Ayarlar">
+</div>
+<div align="center">
+  <br/>
+  <h3>Yeni Arayüz (v1.0.7)</h3>
+  <img src="README_assets/screenshot_v1.0.7.png" width="80%" alt="v1.0.7 Arayüzü">
 </div>
 
 ---
@@ -203,6 +208,13 @@ ROOM_PASSWORD=istediğiniz_zor_sifre
 ---
 
 ## 📝 Güncelleme Geçmişi
+
+### v1.0.7 (2026-02-02)
+- 🎨 **Arayüz İyileştirmeleri**: İkonlar yenilendi ve hizalama sorunları giderildi.
+- 🎛️ **Gelişmiş Ses Kontrolü**: Kullanıcı bazlı ses seviyesi ayarı eklendi.
+- 🖥️ **Tam Ekran Modu**: Videolara tıklayarak tam ekran yapabilme özelliği.
+- 🎤 **Mikrofon Testi**: Ayarlar panelinde görsel mikrofon testi ve loopback özelliği.
+- 🐛 **Hata Düzeltmeleri**: Layout kaymaları ve build sorunları giderildi.
 
 ### v1.0.0 (2026-02-01)
 - 🎉 İlk beta sürümü

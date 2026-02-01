@@ -131,8 +131,22 @@
 .user-status-icons {
     display: flex;
     align-items: center;
-    gap: 0;
-    margin-left: auto;
+    gap: 8px;
+    /* Added spacing */
+}
+
+.status-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    /* Fixed width for balance */
+    height: 28px;
+    color: var(--text-muted);
+}
+
+.status-icon.muted {
+    color: var(--error);
 }
 
 .status-btn {
@@ -197,6 +211,8 @@
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    height: 100vh;
+    /* Force height constraint */
 }
 
 /* Bağlantı Ekranı */
@@ -278,6 +294,11 @@
     display: flex;
     flex-direction: column;
     padding: var(--spacing-md);
+    overflow: hidden;
+    /* Contain children */
+    height: 100%;
+    /* Ensure it respects parent height */
+    box-sizing: border-box;
 }
 
 .video-grid {
@@ -287,6 +308,10 @@
     gap: var(--spacing-md);
     padding: var(--spacing-md);
     overflow-y: auto;
+    /* Scroll INSIDE the grid */
+    min-height: 0;
+    align-content: flex-start;
+    /* Prevent stretching if few items */
 }
 
 .video-placeholder {
@@ -326,6 +351,8 @@
     background-color: var(--bg-secondary);
     border-radius: var(--radius-lg);
     margin: var(--spacing-md);
+    flex-shrink: 0;
+    /* Prevent shrinking/disappearing */
 }
 
 .control-button {
@@ -468,9 +495,12 @@
 }
 
 /* Screen share video container */
+/* Screen share video container */
 .video-container.screen-share-video {
     border-color: var(--accent);
-    grid-column: span 2;
+    /* grid-column: span 2;  <-- REMOVED to prevent shifting layout issue if grid is too small */
+    grid-column: 1 / -1;
+    /* Take full width */
 }
 
 /* User sharing indicator */
@@ -563,11 +593,17 @@
     flex: 1;
     gap: var(--spacing-md);
     overflow: hidden;
+    min-height: 0;
+    /* Important for nested flex scrolling */
 }
 
 .video-section {
     flex: 1;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    /* Important for nested flex scrolling */
 }
 
 .chat-section {
