@@ -39,7 +39,7 @@
 <div align="center">
   <br/>
   <h3>Yeni Arayüz (v1.0.4)</h3>
-  <img src="screenshots/settings_v1.0.4.jpg" width="80%" alt="v1.0.4 Arayüzü">
+  <img src="screenshots/settings_v1.0.4.jpg" width="60%" alt="v1.0.4 Arayüzü">
 </div>
 
 ### ✨ Özellikler
