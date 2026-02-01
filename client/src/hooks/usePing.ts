@@ -5,7 +5,7 @@ interface UsePingReturn {
     pingStatus: 'good' | 'medium' | 'bad';
 }
 
-export function usePing(serverUrl: string = 'http://localhost:3000'): UsePingReturn {
+export function usePing(serverUrl: string = 'http://157.230.125.137:3000'): UsePingReturn {
     const [ping, setPing] = useState<number>(0);
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
 

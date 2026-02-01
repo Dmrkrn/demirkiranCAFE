@@ -42,6 +42,9 @@ function createWindow() {
         minWidth: 800,
         minHeight: 600,
 
+        // İkon (Görev çubuğu için)
+        icon: path.join(__dirname, '../dist/icon.png'),
+
         // Pencere stilleri (Discord benzeri görünüm)
         backgroundColor: '#1a1a2e', // Koyu arka plan
         frame: false, // Çerçevesiz pencere (Modern görünüm için)
@@ -53,6 +56,7 @@ function createWindow() {
             nodeIntegration: false,           // Güvenlik: Node.js API'lerini kapatıyoruz
             contextIsolation: true,           // Güvenlik: Renderer'ı izole ediyoruz
             preload: path.join(__dirname, 'preload.js'), // Köprü script
+            backgroundThrottling: false,      // Ses işleme için throttling'i kapat
         },
     });
 

@@ -38,8 +38,9 @@ interface UseSocketReturn {
     onChatMessage: (callback: (msg: ChatMessage) => void) => () => void;
 
     // Users
-    peers: Array<{ id: string; username: string }>;
+    peers: Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean }>;
     fetchPeers: () => Promise<void>;
+    updatePeerStatus: (peerId: string, status: { isMicMuted?: boolean; isDeafened?: boolean }) => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -48,7 +49,19 @@ export function useSocket(): UseSocketReturn {
     const [clientId, setClientId] = useState<string | null>(null);
 
     // Peer listesi
-    const [peers, setPeers] = useState<Array<{ id: string; username: string }>>([]);
+    const [peers, setPeers] = useState<Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean }>>([]);
+
+    /**
+     * Peer durumunu güncelle (App.tsx'ten çağrılacak)
+     */
+    const updatePeerStatus = useCallback((peerId: string, status: { isMicMuted?: boolean; isDeafened?: boolean }) => {
+        setPeers(prev => prev.map(p => {
+            if (p.id === peerId) {
+                return { ...p, ...status };
+            }
+            return p;
+        }));
+    }, []);
 
     useEffect(() => {
         // Socket.io bağlantısı oluştur
@@ -80,11 +93,18 @@ export function useSocket(): UseSocketReturn {
             setPeers([]); // Peer listesini temizle
         });
 
-        // Yeni kullanıcı katıldığında
+        // Yeni kullanıcı katıldığında (veya isim güncellediğinde)
         socket.on('peer-joined', (data: { peerId: string; username: string }) => {
-            console.log('👤 Yeni kullanıcı katıldı:', data.peerId, data.username);
+            console.log('👤 Yeni kullanıcı katıldı/güncellendi:', data.peerId, data.username);
             setPeers((prev) => {
-                if (prev.find(p => p.id === data.peerId)) return prev;
+                const existingIndex = prev.findIndex(p => p.id === data.peerId);
+                if (existingIndex !== -1) {
+                    // Varsa güncelle
+                    const newPeers = [...prev];
+                    newPeers[existingIndex] = { id: data.peerId, username: data.username };
+                    return newPeers;
+                }
+                // Yoksa ekle
                 return [...prev, { id: data.peerId, username: data.username }];
             });
         });
@@ -183,6 +203,7 @@ export function useSocket(): UseSocketReturn {
         emit,
         request,
         fetchPeers,
+        updatePeerStatus,
         onChatMessage,
     };
 }

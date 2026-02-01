@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import logo from './assets/logo.png';
 import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActivity, useQualitySettings, usePing } from './hooks';
+import { useAudioLevel } from './hooks/useAudioLevel';
 import { ScreenSharePicker } from './components/ScreenSharePicker';
 import { QualitySelector } from './components/QualitySelector';
 import { Avatar } from './components/Avatar';
@@ -44,7 +45,7 @@ function App() {
     const screenVideoRef = useRef<HTMLVideoElement>(null);
 
     // Custom Hooks
-    const { isConnected, clientId, request, emit, onChatMessage, peers, fetchPeers } = useSocket();
+    const { isConnected, clientId, request, emit, onChatMessage, peers, fetchPeers, socket } = useSocket();
     const {
         localStream,
         videoEnabled,
@@ -62,6 +63,7 @@ function App() {
         produceVideo,
         produceAudio,
         consumeAll,
+        consumeProducer, // <-- Import added
         closeAll,
     } = useMediasoup({ request });
 
@@ -104,24 +106,14 @@ function App() {
         }
     }, [screenStream]);
 
-    // Chat mesajlarını dinle
-    useEffect(() => {
-        const unsubscribe = onChatMessage((msg) => {
-            setChatMessages(prev => [...prev, msg]);
-        });
-        return unsubscribe;
-    }, [onChatMessage]);
 
     // Mikrofonu aç/kapat (sesli bildirimle)
     const handleToggleMic = useCallback(() => {
         if (localStream) {
             const audioTrack = localStream.getAudioTracks()[0];
             if (audioTrack) {
-                // Yeni durum ne olacak?
                 const willBeMuted = audioTrack.enabled;
-                // Toggle yap (hook'tan)
                 toggleAudio();
-                // Ses çal
                 if (willBeMuted) {
                     playMuteSound();
                 } else {
@@ -133,13 +125,10 @@ function App() {
 
     // Sesi kapat/aç - Deafen (sesli bildirimle)
     const handleToggleDeafen = useCallback(() => {
-        const newState = !isDeafened;
-        setIsDeafened(newState);
-        if (newState) {
-            playDeafenSound();
-        } else {
-            playUndeafenSound();
-        }
+        const newDeafened = !isDeafened;
+        setIsDeafened(newDeafened);
+        if (newDeafened) playDeafenSound();
+        else playUndeafenSound();
     }, [isDeafened]);
 
     // Global keybind listener
@@ -167,6 +156,54 @@ function App() {
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [showSettings, handleToggleMic, handleToggleDeafen]);
 
+    // Yeni producer (stream) açıldığında otomatik consume et
+    useEffect(() => {
+        if (!socket || !isJoined) return;
+
+        const handleNewProducer = async (data: { producerId: string; peerId: string }) => {
+            console.log('🆕 Yeni producer algılandı:', data.producerId, 'from', data.peerId);
+            try {
+                // Eğer producer bize ait değilse consume et
+                if (data.peerId !== clientId) {
+                    await consumeProducer(data.producerId);
+                }
+            } catch (error) {
+                console.error('❌ Auto-consume hatası:', error);
+            }
+        };
+
+        socket.on('new-producer', handleNewProducer);
+
+        return () => {
+            socket.off('new-producer', handleNewProducer);
+        };
+    }, [socket, clientId, isJoined, consumeProducer]);
+
+    // Chat mesajlarını dinle - sadece odaya katıldıktan sonra
+    const seenMessageIds = useRef<Set<string>>(new Set());
+
+    useEffect(() => {
+        if (!isJoined) return;
+
+        const cleanup = onChatMessage((msg) => {
+            // Status mesajlarını filtrele (eski client'lardan gelebilir)
+            if (msg.message.startsWith('{') && msg.message.includes('"type":"status"')) {
+                return; // Gösterme
+            }
+
+            // Duplicate kontrolü - aynı ID'li mesaj zaten gösterilmiş mi?
+            if (seenMessageIds.current.has(msg.id)) {
+                console.log('🔄 Duplicate mesaj engellendi:', msg.id);
+                return;
+            }
+            seenMessageIds.current.add(msg.id);
+
+            setChatMessages((prev) => [...prev, msg]);
+            playUnmuteSound();
+        });
+        return cleanup;
+    }, [onChatMessage, isJoined]);
+
     /**
      * Mesaj gönder
      */
@@ -191,6 +228,14 @@ function App() {
         try {
             setJoiningStatus('connecting');
 
+            // Adım 0: Önce kimliğimizi sunucuya kaydettirelim!
+            // Böylece sonraki işlemlerimizde adımız "Anonim" görünmez.
+            const userResponse = await request('setUsername', { username, password: roomPassword }) as { success: boolean; error?: string };
+            if (!userResponse || !userResponse.success) {
+                throw new Error(userResponse?.error || 'Kullanıcı adı alınamadı');
+            }
+            // Başarılı olursa (ama daha tam katılmadık, UI dönebilir)
+
             console.log('📱 Adım 1: Device yükleniyor...');
             const deviceLoaded = await loadDevice();
             if (!deviceLoaded) throw new Error('Device yüklenemedi');
@@ -213,13 +258,6 @@ function App() {
 
             console.log('👀 Adım 5: Diğer kullanıcılar consume ediliyor...');
             await consumeAll();
-
-            // Adım 6: Kullanıcı adını ve şifreyi sunucuya gönder
-            const response = await request('setUsername', { username, password: roomPassword }) as { success: boolean; error?: string };
-
-            if (!response || !response.success) {
-                throw new Error(response?.error || 'Odaya katılınamadı');
-            }
 
             setIsJoined(true);
             setJoiningStatus('idle');
@@ -397,21 +435,9 @@ function App() {
                                 </div>
                             </div>
                         )}
-                        {peers.map((peer) => {
-                            const peerConsumers = consumers.filter(c => c.peerId === peer.id);
-                            const hasVideo = peerConsumers.some(c => c.kind === 'video');
-                            const hasAudio = peerConsumers.some(c => c.kind === 'audio');
-
-                            return (
-                                <div key={peer.id} className="user-item">
-                                    <Avatar name={peer.username} size="sm" />
-                                    <span className="user-name">{peer.username}</span>
-                                    <span className="user-media">
-                                        {hasVideo && '📹'} {hasAudio && '🎤'}
-                                    </span>
-                                </div>
-                            );
-                        })}
+                        {peers.map((peer) => (
+                            <SidebarPeer key={peer.id} peer={peer} consumers={consumers} />
+                        ))}
                     </div>
 
                     <div className="sidebar-footer">
@@ -602,6 +628,11 @@ function App() {
                                     </button>
                                 </div>
                             </div>
+
+                            {/* Audio Elements for Remote Streams (GÖRÜNMEZ AMA SES VERİR) */}
+                            {consumers.filter(c => c.kind === 'audio').map(consumer => (
+                                <AudioPlayer key={consumer.id} stream={consumer.stream} muted={isDeafened} />
+                            ))}
                         </div>
                     )}
                 </main>
@@ -615,6 +646,7 @@ function App() {
  */
 function VideoPlayer({ stream }: { stream: MediaStream }) {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const isSpeaking = useAudioLevel(stream);
 
     useEffect(() => {
         if (videoRef.current) {
@@ -627,8 +659,84 @@ function VideoPlayer({ stream }: { stream: MediaStream }) {
             ref={videoRef}
             autoPlay
             playsInline
-            className="video-element"
+            className={`video-element ${isSpeaking ? 'speaking' : ''}`}
         />
+    );
+}
+
+/**
+ * Audio Player Bileşeni
+ * Tarayıcı autoplay politikasına uygun şekilde ses çalar
+ */
+function AudioPlayer({ stream, muted }: { stream: MediaStream; muted: boolean }) {
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio || !stream) return;
+
+        audio.srcObject = stream;
+
+        // Tarayıcı autoplay politikasına uygun şekilde play et
+        const playAudio = async () => {
+            try {
+                await audio.play();
+                console.log('🔊 Audio playback started');
+            } catch (error) {
+                console.warn('⚠️ Audio autoplay blocked, waiting for user interaction');
+                // Kullanıcı etkileşiminden sonra tekrar dene
+                const handleInteraction = async () => {
+                    try {
+                        await audio.play();
+                        console.log('🔊 Audio playback started after interaction');
+                        document.removeEventListener('click', handleInteraction);
+                    } catch (e) {
+                        console.error('Audio play failed:', e);
+                    }
+                };
+                document.addEventListener('click', handleInteraction);
+            }
+        };
+
+        playAudio();
+    }, [stream]);
+
+    return (
+        <audio
+            ref={audioRef}
+            muted={muted}
+            playsInline
+            style={{ display: 'none' }}
+        />
+    );
+}
+
+/**
+ * Sidebar Peer Bileşeni (Ses aktivitesi için)
+ */
+function SidebarPeer({ peer, consumers }: { peer: { id: string, username: string, isMicMuted?: boolean, isDeafened?: boolean }, consumers: any[] }) {
+    const peerConsumers = consumers.filter(c => c.peerId === peer.id);
+    const hasVideo = peerConsumers.some(c => c.kind === 'video');
+    const audioConsumer = peerConsumers.find(c => c.kind === 'audio');
+
+    // Konuşuyor mu? (Eğer mute'lu ise konuşmuyor say)
+    const rawIsSpeaking = useAudioLevel(audioConsumer?.stream || null);
+    const isSpeaking = rawIsSpeaking && !peer.isMicMuted;
+
+    return (
+        <div className={`user-item ${isSpeaking ? 'speaking' : ''}`}>
+            <Avatar name={peer.username} size="sm" />
+            <div className="user-info-col" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <span className="user-name">{peer.username}</span>
+                {peer.isDeafened && <span style={{ fontSize: '0.7rem', color: 'red' }}>Sağırlaştırıldı</span>}
+            </div>
+
+            <span className="user-media">
+                {hasVideo && '📹'}
+                {peer.isMicMuted ? '🔴' : (audioConsumer ? '🎤' : '')}
+                {peer.isDeafened && '🔇'}
+            </span>
+        </div>
     );
 }
 

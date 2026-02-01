@@ -199,12 +199,15 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             return null;
         }
 
+        // VPS Public IP - .env'den oku veya hardcode
+        const publicIp = process.env.ANNOUNCED_IP || '157.230.125.137';
+
         // WebRTC Transport oluştur
         const transport = await this.router.createWebRtcTransport({
             listenIps: [
                 {
                     ip: '0.0.0.0',      // Tüm arayüzlerden dinle
-                    announcedIp: undefined,  // Gerçek IP (Production'da sunucu IP'si olmalı)
+                    announcedIp: publicIp,  // VPS Public IP (bu olmadan WebRTC çalışmaz!)
                 },
             ],
             enableUdp: true,
@@ -222,7 +225,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             this.transports.delete(`${clientId}-${transport.id}`);
         });
 
-        this.logger.log(`📡 WebRTC Transport oluşturuldu: ${transport.id} (Client: ${clientId})`);
+        this.logger.log(`📡 WebRTC Transport oluşturuldu: ${transport.id} (Client: ${clientId}, IP: ${publicIp})`);
 
         return {
             id: transport.id,

@@ -65,6 +65,7 @@ interface UseMediasoupReturn {
     produceVideo: (track: MediaStreamTrack) => Promise<string | null>;
     produceAudio: (track: MediaStreamTrack) => Promise<string | null>;
     consumeAll: () => Promise<void>;
+    consumeProducer: (producerId: string) => Promise<void>; // <-- YENİ
     closeAll: () => void;
 }
 
@@ -387,6 +388,7 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
         produceVideo,
         produceAudio,
         consumeAll,
+        consumeProducer, // <-- YENİ: Tekli consume için dışarı açtık
         closeAll,
     };
 }

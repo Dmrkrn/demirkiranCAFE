@@ -47,37 +47,13 @@ export function useVoiceActivity({
     const audioContextRef = useRef<AudioContext | null>(null);
     const analyserRef = useRef<AnalyserNode | null>(null);
     const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-    const animationFrameRef = useRef<number | null>(null);
-    const isRunningRef = useRef(false);
-
-    /**
-     * Ses seviyesini analiz et
-     */
-    const analyzeVolume = useCallback(() => {
-        if (!analyserRef.current || !isRunningRef.current) return;
-
-        const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-        analyserRef.current.getByteFrequencyData(dataArray);
-
-        // Ortalama ses seviyesini hesapla
-        const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
-
-        // 0-100 arasına normalize et
-        const normalizedVolume = Math.min(100, Math.round((average / 255) * 100));
-        setVolume(normalizedVolume);
-
-        // Eşik kontrolü
-        setIsSpeaking(average > threshold);
-
-        // Sonraki frame'i planla
-        animationFrameRef.current = requestAnimationFrame(analyzeVolume);
-    }, [threshold]);
+    const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     /**
      * VAD'ı başlat
      */
     const startDetection = useCallback(() => {
-        if (!stream || isRunningRef.current) return;
+        if (!stream || intervalRef.current) return;
 
         try {
             // AudioContext oluştur
@@ -95,25 +71,33 @@ export function useVoiceActivity({
             source.connect(analyser);
             sourceRef.current = source;
 
-            // Analizi başlat
-            isRunningRef.current = true;
-            analyzeVolume();
+            // Analiz fonksiyonu - closure'da analyser'ı yakala
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            const analyze = () => {
+                analyser.getByteFrequencyData(dataArray);
+                const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+                const normalizedVolume = Math.min(100, Math.round((average / 255) * 100));
+                setVolume(normalizedVolume);
+                setIsSpeaking(average > threshold);
+            };
+
+            // Analizi setInterval ile başlat (Electron için daha tutarlı)
+            // 50ms = ~20 fps ses analizi
+            intervalRef.current = setInterval(analyze, 50);
 
             console.log('🎤 VAD başlatıldı');
         } catch (error) {
             console.error('❌ VAD başlatılamadı:', error);
         }
-    }, [stream, smoothingTimeConstant, analyzeVolume]);
+    }, [stream, smoothingTimeConstant, threshold]);
 
     /**
      * VAD'ı durdur
      */
     const stopDetection = useCallback(() => {
-        isRunningRef.current = false;
-
-        if (animationFrameRef.current) {
-            cancelAnimationFrame(animationFrameRef.current);
-            animationFrameRef.current = null;
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
         }
 
         if (sourceRef.current) {
