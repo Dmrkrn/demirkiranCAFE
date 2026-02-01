@@ -59,8 +59,17 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
     const [speakerVolume, setSpeakerVolume] = useState<number>(100);
     const [micThreshold, setMicThreshold] = useState<number>(() => {
         const saved = localStorage.getItem('demirkiran-mic-threshold');
-        return saved ? Number(saved) : 20;
+        return saved ? Number(saved) : 10; // Default now 10
     });
+
+    // Test & Visualization State
+    const [testStream, setTestStream] = useState<MediaStream | null>(null);
+    const [testVolume, setTestVolume] = useState(0);
+    const [isTestSpeaking, setIsTestSpeaking] = useState(false);
+    const [isLoopbackEnabled, setIsLoopbackEnabled] = useState(false);
+    const analyserRef = React.useRef<AnalyserNode | null>(null);
+    const animationRef = React.useRef<number | null>(null);
+    const audioContextRef = React.useRef<AudioContext | null>(null);
 
     // Keybind state
     const [keybinds, setKeybinds] = useState<Keybinds>(loadKeybinds);
@@ -85,6 +94,92 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
             return () => window.removeEventListener('keydown', handleKeyDown);
         }
     }, [recordingKey, handleKeyDown]);
+
+    // Cleanup function for test resources
+    const stopTest = useCallback(() => {
+        if (animationRef.current) cancelAnimationFrame(animationRef.current);
+        if (testStream) {
+            testStream.getTracks().forEach(t => t.stop());
+            setTestStream(null);
+        }
+        if (audioContextRef.current) {
+            audioContextRef.current.close();
+            audioContextRef.current = null;
+        }
+        setIsLoopbackEnabled(false);
+        setTestVolume(0);
+        setIsTestSpeaking(false);
+    }, [testStream]);
+
+    // Stop test when closing
+    useEffect(() => {
+        if (!isOpen) {
+            stopTest();
+        }
+    }, [isOpen, stopTest]);
+
+    // Start Test Stream when Mic Selected and Panel Open
+    useEffect(() => {
+        if (!isOpen || !selectedMic) return;
+
+        let active = true;
+
+        const startMicTest = async () => {
+            // Stop previous test if any
+            if (testStream) {
+                testStream.getTracks().forEach(t => t.stop());
+            }
+            if (audioContextRef.current) {
+                audioContextRef.current.close();
+            }
+
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: { deviceId: { exact: selectedMic } }
+                });
+
+                if (!active) {
+                    stream.getTracks().forEach(t => t.stop());
+                    return;
+                }
+
+                setTestStream(stream);
+
+                const audioContext = new AudioContext();
+                audioContextRef.current = audioContext;
+                const analyser = audioContext.createAnalyser();
+                analyser.fftSize = 256;
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                analyserRef.current = analyser;
+
+                const dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                const analyze = () => {
+                    if (!active) return;
+                    analyser.getByteFrequencyData(dataArray);
+                    const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+                    const normalizedVolume = Math.min(100, Math.round((average / 255) * 100));
+
+                    setTestVolume(normalizedVolume);
+                    setIsTestSpeaking(average > micThreshold);
+
+                    animationRef.current = requestAnimationFrame(analyze);
+                };
+                analyze();
+
+            } catch (err) {
+                console.error("Test stream error:", err);
+            }
+        };
+
+        startMicTest();
+
+        return () => {
+            active = false;
+            // Don't stop here to allow smooth switching, handled by logic above or close effect
+        };
+    }, [isOpen, selectedMic, micThreshold]);
 
     useEffect(() => {
         const loadDevices = async () => {
@@ -112,14 +207,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                     kind: d.kind
                 })));
 
-                // İlk cihazları seç
-                const firstMic = devices.find(d => d.kind === 'audioinput');
-                const firstSpeaker = devices.find(d => d.kind === 'audiooutput');
-                const firstCamera = devices.find(d => d.kind === 'videoinput');
-
-                if (firstMic) setSelectedMic(firstMic.deviceId);
-                if (firstSpeaker) setSelectedSpeaker(firstSpeaker.deviceId);
-                if (firstCamera) setSelectedCamera(firstCamera.deviceId);
+                // İlk cihazları seç (Zaten seçili değilse)
+                if (!selectedMic) {
+                    const firstMic = devices.find(d => d.kind === 'audioinput');
+                    if (firstMic) setSelectedMic(firstMic.deviceId);
+                }
+                if (!selectedSpeaker) {
+                    const firstSpeaker = devices.find(d => d.kind === 'audiooutput');
+                    if (firstSpeaker) setSelectedSpeaker(firstSpeaker.deviceId);
+                }
+                if (!selectedCamera) {
+                    const firstCamera = devices.find(d => d.kind === 'videoinput');
+                    if (firstCamera) setSelectedCamera(firstCamera.deviceId);
+                }
 
             } catch (err) {
                 console.error('Cihazlar yüklenemedi:', err);
@@ -129,7 +229,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
         if (isOpen) {
             loadDevices();
         }
-    }, [isOpen]);
+    }, [isOpen, selectedMic, selectedSpeaker, selectedCamera]);
 
     if (!isOpen) return null;
 
@@ -160,6 +260,66 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                                 </option>
                             ))}
                         </select>
+
+                        {/* Mic Test Visualizer */}
+                        <div className="mic-test-area" style={{ margin: '15px 0', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                <span style={{ fontSize: '0.9rem' }}>Mikrofon Testi</span>
+                                <span style={{ fontSize: '0.8rem', color: isTestSpeaking ? '#4ade80' : '#888' }}>
+                                    {isTestSpeaking ? 'Algılanıyor' : 'Sessiz'}
+                                </span>
+                            </div>
+                            {/* Simple Visualizer Bar */}
+                            <div style={{ height: '10px', width: '100%', background: '#333', borderRadius: '5px', overflow: 'hidden', position: 'relative' }}>
+                                <div
+                                    style={{
+                                        width: `${testVolume}%`,
+                                        height: '100%',
+                                        background: isTestSpeaking ? '#4ade80' : '#fbbf24',
+                                        transition: 'width 0.1s ease',
+                                    }}
+                                />
+                                {/* Threshold Indicator */}
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        left: `${micThreshold}%`,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: '2px',
+                                        background: 'red',
+                                        zIndex: 10
+                                    }}
+                                    title="Eşik Değeri"
+                                />
+                            </div>
+
+                            <button
+                                onClick={() => setIsLoopbackEnabled(!isLoopbackEnabled)}
+                                style={{
+                                    marginTop: '10px',
+                                    padding: '8px 12px',
+                                    fontSize: '0.8rem',
+                                    background: isLoopbackEnabled ? '#dc2626' : '#2563eb',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {isLoopbackEnabled ? 'Testi Durdur' : 'Sesimi Duy (Loopback Test)'}
+                            </button>
+                            {/* Loopback Audio Element */}
+                            {testStream && isLoopbackEnabled && (
+                                <audio
+                                    ref={el => { if (el) el.srcObject = testStream; }}
+                                    autoPlay
+                                    playsInline
+                                    style={{ display: 'none' }}
+                                />
+                            )}
+                        </div>
+
                         <div className="volume-control">
                             <span>Giriş Ses Seviyesi</span>
                             <input
@@ -173,10 +333,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                             <span className="volume-value">{micVolume}%</span>
                         </div>
                         <div className="volume-control">
-                            <span>Mikrofon Eşik Değeri</span>
+                            <span title="Bu seviyenin altındaki sesler iletilmez">Mikrofon Eşik Değeri (VAD)</span>
                             <input
                                 type="range"
-                                min="0"
+                                min="1"
                                 max="100"
                                 value={micThreshold}
                                 onChange={(e) => {
@@ -186,9 +346,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                                 }}
                                 className="volume-slider threshold-slider"
                             />
-                            <span className="volume-value">{micThreshold}%</span>
+                            <span className="volume-value">{micThreshold}</span>
                         </div>
-                        <p className="settings-hint">Eşik değerinin altındaki sesler iletilmez (gürültü azaltma)</p>
+                        <p className="settings-hint">Kırmızı çizgi eşik değeridir. Ses çubuğu bu çizgiyi geçtiğinde sesiniz karşıya gider.</p>
                     </div>
 
                     {/* Ses Çıkışı */}

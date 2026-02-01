@@ -40,6 +40,9 @@ function App() {
         timestamp: string;
     }>>([]);
 
+    // Kullanıcı Ses Seviyeleri (0-100)
+    const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
+
     // Video elementleri için ref
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const screenVideoRef = useRef<HTMLVideoElement>(null);
@@ -357,6 +360,14 @@ function App() {
         }
     };
 
+    // Kullanıcı ses seviyesini değiştir
+    const handleVolumeChange = (peerId: string, volume: number) => {
+        setUserVolumes(prev => ({
+            ...prev,
+            [peerId]: volume
+        }));
+    };
+
     return (
         <div className="app">
             <TitleBar />
@@ -436,7 +447,13 @@ function App() {
                             </div>
                         )}
                         {peers.map((peer) => (
-                            <SidebarPeer key={peer.id} peer={peer} consumers={consumers} />
+                            <SidebarPeer
+                                key={peer.id}
+                                peer={peer}
+                                consumers={consumers}
+                                volume={userVolumes[peer.id] ?? 100}
+                                onVolumeChange={handleVolumeChange}
+                            />
                         ))}
                     </div>
 
@@ -631,7 +648,12 @@ function App() {
 
                             {/* Audio Elements for Remote Streams (GÖRÜNMEZ AMA SES VERİR) */}
                             {consumers.filter(c => c.kind === 'audio').map(consumer => (
-                                <AudioPlayer key={consumer.id} stream={consumer.stream} muted={isDeafened} />
+                                <AudioPlayer
+                                    key={consumer.id}
+                                    stream={consumer.stream}
+                                    muted={isDeafened}
+                                    volume={userVolumes[consumer.peerId] ?? 100}
+                                />
                             ))}
                         </div>
                     )}
@@ -668,7 +690,7 @@ function VideoPlayer({ stream }: { stream: MediaStream }) {
  * Audio Player Bileşeni
  * Tarayıcı autoplay politikasına uygun şekilde ses çalar
  */
-function AudioPlayer({ stream, muted }: { stream: MediaStream; muted: boolean }) {
+function AudioPlayer({ stream, muted, volume = 100 }: { stream: MediaStream; muted: boolean, volume?: number }) {
     const audioRef = useRef<HTMLAudioElement>(null);
 
     useEffect(() => {
@@ -701,6 +723,14 @@ function AudioPlayer({ stream, muted }: { stream: MediaStream; muted: boolean })
         playAudio();
     }, [stream]);
 
+    // Volume değişikliğini uygula
+    useEffect(() => {
+        if (audioRef.current) {
+            // HTMLMediaElement volume 0.0 - 1.0 arasıdır
+            audioRef.current.volume = volume / 100;
+        }
+    }, [volume]);
+
     return (
         <audio
             ref={audioRef}
@@ -714,7 +744,17 @@ function AudioPlayer({ stream, muted }: { stream: MediaStream; muted: boolean })
 /**
  * Sidebar Peer Bileşeni (Ses aktivitesi için)
  */
-function SidebarPeer({ peer, consumers }: { peer: { id: string, username: string, isMicMuted?: boolean, isDeafened?: boolean }, consumers: any[] }) {
+function SidebarPeer({
+    peer,
+    consumers,
+    volume,
+    onVolumeChange
+}: {
+    peer: { id: string, username: string, isMicMuted?: boolean, isDeafened?: boolean },
+    consumers: any[],
+    volume: number,
+    onVolumeChange: (id: string, vol: number) => void
+}) {
     const peerConsumers = consumers.filter(c => c.peerId === peer.id);
     const hasVideo = peerConsumers.some(c => c.kind === 'video');
     const audioConsumer = peerConsumers.find(c => c.kind === 'audio');
@@ -723,19 +763,42 @@ function SidebarPeer({ peer, consumers }: { peer: { id: string, username: string
     const rawIsSpeaking = useAudioLevel(audioConsumer?.stream || null);
     const isSpeaking = rawIsSpeaking && !peer.isMicMuted;
 
+    // Sağ tık menüsü state'i (basitçe her zaman gösterilen slider yerine hover ile gösterilebilir, ama şimdilik inline yapalım)
+    const [showVolume, setShowVolume] = useState(false);
+
     return (
-        <div className={`user-item ${isSpeaking ? 'speaking' : ''}`}>
+        <div
+            className={`user-item ${isSpeaking ? 'speaking' : ''}`}
+            onMouseEnter={() => setShowVolume(true)}
+            onMouseLeave={() => setShowVolume(false)}
+        >
             <Avatar name={peer.username} size="sm" />
             <div className="user-info-col" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <span className="user-name">{peer.username}</span>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="user-name">{peer.username}</span>
+                    <span className="user-media">
+                        {hasVideo && '📹'}
+                        {peer.isMicMuted ? '🔴' : (audioConsumer ? '🎤' : '')}
+                        {peer.isDeafened && '🔇'}
+                    </span>
+                </div>
+                {/* Volume Slider - Hover yapınca veya volume değişmişse göster */}
+                {(showVolume || volume !== 100) && audioConsumer && (
+                    <div className="user-volume-control" onClick={e => e.stopPropagation()} style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '0.7rem' }}>🔊</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={volume}
+                            onChange={(e) => onVolumeChange(peer.id, Number(e.target.value))}
+                            style={{ width: '100%', height: '4px' }}
+                            title={`Ses Seviyesi: ${volume}%`}
+                        />
+                    </div>
+                )}
                 {peer.isDeafened && <span style={{ fontSize: '0.7rem', color: 'red' }}>Sağırlaştırıldı</span>}
             </div>
-
-            <span className="user-media">
-                {hasVideo && '📹'}
-                {peer.isMicMuted ? '🔴' : (audioConsumer ? '🎤' : '')}
-                {peer.isDeafened && '🔇'}
-            </span>
         </div>
     );
 }
