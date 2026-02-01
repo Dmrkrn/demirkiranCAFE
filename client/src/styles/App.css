@@ -128,6 +128,40 @@
     opacity: 0.5;
 }
 
+.user-status-icons {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-left: auto;
+}
+
+.status-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-primary, #fff);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: 4px;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+}
+
+.status-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+.status-btn.muted {
+    color: #f04747;
+}
+
+.status-btn.muted:hover {
+    background-color: rgba(240, 71, 71, 0.15);
+}
+
 .sidebar-footer {
     padding: var(--spacing-md) var(--spacing-lg);
     border-top: 1px solid rgba(255, 255, 255, 0.05);

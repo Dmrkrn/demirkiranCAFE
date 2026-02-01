@@ -177,3 +177,70 @@
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgba(255, 107, 53, 0.3);
 }
+
+.settings-hint {
+    font-size: 0.75rem;
+    color: var(--text-muted, #808080);
+    margin: 8px 0 0 0;
+    font-style: italic;
+}
+
+.threshold-slider::-webkit-slider-thumb {
+    background: linear-gradient(135deg, #43b581 0%, #3ba55c 100%);
+}
+
+/* Keybind Styles */
+.keybind-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.keybind-row:last-child {
+    border-bottom: none;
+}
+
+.keybind-label {
+    font-size: 0.85rem;
+    color: var(--text-primary, #fff);
+}
+
+.keybind-btn {
+    min-width: 100px;
+    padding: 8px 16px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+
+.keybind-btn:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.25);
+}
+
+.keybind-btn.recording {
+    background-color: rgba(255, 107, 53, 0.2);
+    border-color: #ff6b35;
+    color: #ff6b35;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}

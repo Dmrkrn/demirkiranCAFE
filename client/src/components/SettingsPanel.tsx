@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import './SettingsPanel.css';
 
 interface SettingsPanelProps {
@@ -12,6 +12,40 @@ interface MediaDeviceInfo {
     kind: string;
 }
 
+interface Keybinds {
+    toggleMic: string;
+    toggleSpeaker: string;
+}
+
+// localStorage'dan keybind'leri yükle
+const loadKeybinds = (): Keybinds => {
+    try {
+        const saved = localStorage.getItem('demirkiran-keybinds');
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (e) {
+        console.error('Keybind yüklenemedi:', e);
+    }
+    return { toggleMic: 'KeyM', toggleSpeaker: 'KeyD' };
+};
+
+// Keybind'leri kaydet
+const saveKeybinds = (keybinds: Keybinds) => {
+    localStorage.setItem('demirkiran-keybinds', JSON.stringify(keybinds));
+};
+
+// Tuş kodunu okunabilir formata çevir
+const formatKeyCode = (code: string): string => {
+    if (code.startsWith('Key')) return code.replace('Key', '');
+    if (code.startsWith('Digit')) return code.replace('Digit', '');
+    if (code === 'Space') return 'Space';
+    if (code === 'ControlLeft' || code === 'ControlRight') return 'Ctrl';
+    if (code === 'ShiftLeft' || code === 'ShiftRight') return 'Shift';
+    if (code === 'AltLeft' || code === 'AltRight') return 'Alt';
+    return code;
+};
+
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
     const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
     const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
@@ -23,6 +57,34 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
 
     const [micVolume, setMicVolume] = useState<number>(100);
     const [speakerVolume, setSpeakerVolume] = useState<number>(100);
+    const [micThreshold, setMicThreshold] = useState<number>(() => {
+        const saved = localStorage.getItem('demirkiran-mic-threshold');
+        return saved ? Number(saved) : 20;
+    });
+
+    // Keybind state
+    const [keybinds, setKeybinds] = useState<Keybinds>(loadKeybinds);
+    const [recordingKey, setRecordingKey] = useState<'toggleMic' | 'toggleSpeaker' | null>(null);
+
+    // Keybind kaydetme
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+        if (!recordingKey) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        const newKeybinds = { ...keybinds, [recordingKey]: e.code };
+        setKeybinds(newKeybinds);
+        saveKeybinds(newKeybinds);
+        setRecordingKey(null);
+    }, [recordingKey, keybinds]);
+
+    useEffect(() => {
+        if (recordingKey) {
+            window.addEventListener('keydown', handleKeyDown);
+            return () => window.removeEventListener('keydown', handleKeyDown);
+        }
+    }, [recordingKey, handleKeyDown]);
 
     useEffect(() => {
         const loadDevices = async () => {
@@ -110,6 +172,23 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                             />
                             <span className="volume-value">{micVolume}%</span>
                         </div>
+                        <div className="volume-control">
+                            <span>Mikrofon Eşik Değeri</span>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={micThreshold}
+                                onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    setMicThreshold(val);
+                                    localStorage.setItem('demirkiran-mic-threshold', String(val));
+                                }}
+                                className="volume-slider threshold-slider"
+                            />
+                            <span className="volume-value">{micThreshold}%</span>
+                        </div>
+                        <p className="settings-hint">Eşik değerinin altındaki sesler iletilmez (gürültü azaltma)</p>
                     </div>
 
                     {/* Ses Çıkışı */}
@@ -155,6 +234,35 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                             ))}
                         </select>
                     </div>
+
+                    {/* Kısayol Tuşları */}
+                    <div className="settings-section">
+                        <h3>⌨️ Kısayol Tuşları</h3>
+
+                        <div className="keybind-row">
+                            <span className="keybind-label">Mikrofonu Aç/Kapat</span>
+                            <button
+                                className={`keybind-btn ${recordingKey === 'toggleMic' ? 'recording' : ''}`}
+                                onClick={() => setRecordingKey('toggleMic')}
+                            >
+                                {recordingKey === 'toggleMic'
+                                    ? 'Bir tuşa bas...'
+                                    : formatKeyCode(keybinds.toggleMic)}
+                            </button>
+                        </div>
+
+                        <div className="keybind-row">
+                            <span className="keybind-label">Sesi Kapat/Aç (Deaf)</span>
+                            <button
+                                className={`keybind-btn ${recordingKey === 'toggleSpeaker' ? 'recording' : ''}`}
+                                onClick={() => setRecordingKey('toggleSpeaker')}
+                            >
+                                {recordingKey === 'toggleSpeaker'
+                                    ? 'Bir tuşa bas...'
+                                    : formatKeyCode(keybinds.toggleSpeaker)}
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="settings-footer">
@@ -166,3 +274,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
         </div>
     );
 };
+
+// Export keybinds loader for use in App
+export { loadKeybinds, type Keybinds };
