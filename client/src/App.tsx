@@ -4,6 +4,7 @@ import { ScreenSharePicker } from './components/ScreenSharePicker';
 import { QualitySelector } from './components/QualitySelector';
 import { VolumeIndicator } from './components/VolumeIndicator';
 import { Avatar } from './components/Avatar';
+import { ChatPanel } from './components/ChatPanel';
 import './styles/App.css';
 
 /**
@@ -23,12 +24,22 @@ function App() {
     const [joiningStatus, setJoiningStatus] = useState<'idle' | 'connecting' | 'error'>('idle');
     const [showScreenPicker, setShowScreenPicker] = useState(false);
 
+    // Chat state
+    const [isChatOpen, setIsChatOpen] = useState(false);
+    const [chatMessages, setChatMessages] = useState<Array<{
+        id: string;
+        senderId: string;
+        senderName: string;
+        message: string;
+        timestamp: string;
+    }>>([]);
+
     // Video elementleri için ref
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const screenVideoRef = useRef<HTMLVideoElement>(null);
 
     // Custom Hooks
-    const { isConnected, clientId, request } = useSocket();
+    const { isConnected, clientId, request, emit, onChatMessage } = useSocket();
     const {
         localStream,
         videoEnabled,
@@ -86,6 +97,21 @@ function App() {
         }
     }, [screenStream]);
 
+    // Chat mesajlarını dinle
+    useEffect(() => {
+        const unsubscribe = onChatMessage((msg) => {
+            setChatMessages(prev => [...prev, msg]);
+        });
+        return unsubscribe;
+    }, [onChatMessage]);
+
+    /**
+     * Mesaj gönder
+     */
+    const handleSendMessage = (message: string) => {
+        emit('chat-message', { message });
+    };
+
     /**
      * Odaya Katıl
      */
@@ -125,6 +151,9 @@ function App() {
 
             console.log('👀 Adım 5: Diğer kullanıcılar consume ediliyor...');
             await consumeAll();
+
+            // Adım 6: Kullanıcı adını sunucuya gönder (sohbet için)
+            emit('setUsername', { username });
 
             setIsJoined(true);
             setJoiningStatus('idle');
@@ -320,49 +349,105 @@ function App() {
                     </div>
                 ) : (
                     <div className="room-view">
-                        <div className="video-grid">
-                            {/* Kendi video'muz */}
-                            <div className="video-container self-video">
-                                <video
-                                    ref={localVideoRef}
-                                    autoPlay
-                                    muted
-                                    playsInline
-                                    className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
-                                />
-                                {!videoEnabled && (
-                                    <div className="video-placeholder-content">
-                                        <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
-                                        <div className="placeholder-name">{username}</div>
-                                        <div className="placeholder-text">Kamera kapalı</div>
+                        {/* Video ve Chat container - yan yana */}
+                        <div className="room-content">
+                            {/* Sol: Video Grid */}
+                            <div className="video-section">
+                                <div className="video-grid">
+                                    {/* Kendi video'muz */}
+                                    <div className="video-container self-video">
+                                        <video
+                                            ref={localVideoRef}
+                                            autoPlay
+                                            muted
+                                            playsInline
+                                            className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
+                                        />
+                                        {!videoEnabled && (
+                                            <div className="video-placeholder-content">
+                                                <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
+                                                <div className="placeholder-name">{username}</div>
+                                                <div className="placeholder-text">Kamera kapalı</div>
+                                            </div>
+                                        )}
+                                        <div className="video-label">{username} (Sen)</div>
                                     </div>
-                                )}
-                                <div className="video-label">{username} (Sen)</div>
+
+                                    {/* Ekran paylaşımı video'su */}
+                                    {isSharing && screenStream && (
+                                        <div className="video-container screen-share-video">
+                                            <video
+                                                ref={screenVideoRef}
+                                                autoPlay
+                                                muted
+                                                playsInline
+                                                className="video-element"
+                                            />
+                                            <div className="video-label">🖥️ Ekran Paylaşımı</div>
+                                        </div>
+                                    )}
+
+                                    {/* Diğer kullanıcıların video'ları */}
+                                    {consumers
+                                        .filter(c => c.kind === 'video')
+                                        .map((consumer) => (
+                                            <div key={consumer.id} className="video-container">
+                                                <VideoPlayer stream={consumer.stream} />
+                                                <div className="video-label">Kullanıcı</div>
+                                            </div>
+                                        ))}
+                                </div>
                             </div>
 
-                            {/* Ekran paylaşımı video'su */}
-                            {isSharing && screenStream && (
-                                <div className="video-container screen-share-video">
-                                    <video
-                                        ref={screenVideoRef}
-                                        autoPlay
-                                        muted
-                                        playsInline
-                                        className="video-element"
-                                    />
-                                    <div className="video-label">🖥️ Ekran Paylaşımı</div>
+                            {/* Sağ: Chat Panel */}
+                            <div className="chat-section">
+                                <div className="chat-header-integrated">
+                                    <h3>💬 Sohbet</h3>
                                 </div>
-                            )}
-
-                            {/* Diğer kullanıcıların video'ları */}
-                            {consumers
-                                .filter(c => c.kind === 'video')
-                                .map((consumer) => (
-                                    <div key={consumer.id} className="video-container">
-                                        <VideoPlayer stream={consumer.stream} />
-                                        <div className="video-label">Kullanıcı</div>
-                                    </div>
-                                ))}
+                                <div className="chat-messages-integrated">
+                                    {chatMessages.length === 0 ? (
+                                        <div className="chat-empty-integrated">
+                                            <span>💬</span>
+                                            <p>Henüz mesaj yok</p>
+                                        </div>
+                                    ) : (
+                                        chatMessages.map((msg) => {
+                                            const isOwnMessage = msg.senderId === clientId;
+                                            return (
+                                                <div
+                                                    key={msg.id}
+                                                    className={`chat-msg ${isOwnMessage ? 'own' : ''}`}
+                                                >
+                                                    {!isOwnMessage && (
+                                                        <Avatar name={msg.senderName} size="sm" />
+                                                    )}
+                                                    <div className="msg-content">
+                                                        {!isOwnMessage && (
+                                                            <span className="msg-sender">{msg.senderName}</span>
+                                                        )}
+                                                        <div className="msg-bubble">{msg.message}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                                <form className="chat-input-integrated" onSubmit={(e) => {
+                                    e.preventDefault();
+                                    const input = e.currentTarget.querySelector('input') as HTMLInputElement;
+                                    if (input.value.trim()) {
+                                        handleSendMessage(input.value.trim());
+                                        input.value = '';
+                                    }
+                                }}>
+                                    <input
+                                        type="text"
+                                        placeholder="Mesaj yaz..."
+                                        maxLength={500}
+                                    />
+                                    <button type="submit">➤</button>
+                                </form>
+                            </div>
                         </div>
 
                         {/* Kontrol Çubuğu */}
@@ -408,6 +493,7 @@ function App() {
                     </div>
                 )}
             </main>
+
         </div>
     );
 }

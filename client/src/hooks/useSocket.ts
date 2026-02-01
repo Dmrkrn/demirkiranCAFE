@@ -17,6 +17,14 @@ import { io, Socket } from 'socket.io-client';
 // Sunucu adresi (geliştirme için localhost)
 const SERVER_URL = 'http://localhost:3000';
 
+interface ChatMessage {
+    id: string;
+    senderId: string;
+    senderName: string;
+    message: string;
+    timestamp: string;
+}
+
 interface UseSocketReturn {
     socket: Socket | null;
     isConnected: boolean;
@@ -25,6 +33,9 @@ interface UseSocketReturn {
     // Socket metodları
     emit: <T>(event: string, data?: T) => void;
     request: <T, R>(event: string, data?: T) => Promise<R>;
+
+    // Chat event listener
+    onChatMessage: (callback: (msg: ChatMessage) => void) => () => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -122,11 +133,27 @@ export function useSocket(): UseSocketReturn {
         });
     }, []);
 
+    /**
+     * Chat mesajı dinleyicisi ekle
+     * Temizleme fonksiyonu döner
+     */
+    const onChatMessage = useCallback((callback: (msg: ChatMessage) => void) => {
+        const socket = socketRef.current;
+        if (socket) {
+            socket.on('chat-message', callback);
+            return () => {
+                socket.off('chat-message', callback);
+            };
+        }
+        return () => { };
+    }, []);
+
     return {
         socket: socketRef.current,
         isConnected,
         clientId,
         emit,
         request,
+        onChatMessage,
     };
 }

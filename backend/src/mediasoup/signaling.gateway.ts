@@ -43,6 +43,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     // Client bilgilerini tutmak için
     private clients: Map<string, {
         socket: Socket;
+        username?: string; // Kullanıcı adı
         rtpCapabilities?: mediasoupTypes.RtpCapabilities;
         sendTransportId?: string;
         recvTransportId?: string;
@@ -291,5 +292,69 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             clientInfo.rtpCapabilities = data.rtpCapabilities;
         }
         return { success: true };
+    }
+
+    /**
+     * Kullanıcı adını ayarla
+     */
+    @SubscribeMessage('setUsername')
+    handleSetUsername(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { username: string },
+    ) {
+        const clientInfo = this.clients.get(client.id);
+        if (clientInfo) {
+            clientInfo.username = data.username;
+            this.logger.log(`👤 Kullanıcı adı ayarlandı: ${client.id} -> ${data.username}`);
+
+            // Diğer client'lara haber ver
+            client.broadcast.emit('peer-joined', {
+                peerId: client.id,
+                username: data.username,
+            });
+        }
+        return { success: true };
+    }
+
+    /**
+     * Sohbet Mesajı Gönder
+     * --------------------
+     * Client bir mesaj gönderir, sunucu tüm client'lara dağıtır.
+     */
+    @SubscribeMessage('chat-message')
+    handleChatMessage(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { message: string },
+    ) {
+        const clientInfo = this.clients.get(client.id);
+        const username = clientInfo?.username || 'Anonim';
+
+        this.logger.log(`💬 Mesaj: ${username}: ${data.message}`);
+
+        // Tüm client'lara mesajı gönder (gönderen dahil)
+        this.server.emit('chat-message', {
+            id: `${client.id}-${Date.now()}`,
+            senderId: client.id,
+            senderName: username,
+            message: data.message,
+            timestamp: new Date().toISOString(),
+        });
+
+        return { success: true };
+    }
+
+    /**
+     * Mevcut kullanıcıları listele
+     */
+    @SubscribeMessage('getUsers')
+    handleGetUsers(@ConnectedSocket() client: Socket) {
+        const users = Array.from(this.clients.entries())
+            .filter(([id]) => id !== client.id)
+            .map(([id, info]) => ({
+                id,
+                username: info.username || 'Anonim',
+            }));
+
+        return { users };
     }
 }
