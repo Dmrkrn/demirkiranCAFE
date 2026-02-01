@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="client/public/logo.png" alt="DemirkiranCAFE Logo" width="400">
-</p>
-
 <h1 align="center">DemirkiranCAFE</h1>
 
 <p align="center">
