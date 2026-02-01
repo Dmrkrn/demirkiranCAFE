@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import logo from './assets/logo.png';
 import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActivity, useQualitySettings, usePing } from './hooks';
 import { ScreenSharePicker } from './components/ScreenSharePicker';
 import { QualitySelector } from './components/QualitySelector';
@@ -43,7 +44,7 @@ function App() {
     const screenVideoRef = useRef<HTMLVideoElement>(null);
 
     // Custom Hooks
-    const { isConnected, clientId, request, emit, onChatMessage } = useSocket();
+    const { isConnected, clientId, request, emit, onChatMessage, peers, fetchPeers } = useSocket();
     const {
         localStream,
         videoEnabled,
@@ -224,6 +225,9 @@ function App() {
             setJoiningStatus('idle');
             console.log('✅ Odaya başarıyla katıldın!');
 
+            // Mevcut kullanıcıları getir
+            fetchPeers();
+
         } catch (error) {
             console.error('❌ Odaya katılma hatası:', error);
             setJoiningStatus('error');
@@ -334,7 +338,7 @@ function App() {
             <div className="app-content-wrapper">
                 <aside className="sidebar">
                     <div className="logo">
-                        <img src="/logo.png" alt="Logo" className="logo-img" />
+                        <img src={logo} alt="Logo" className="logo-img" />
                         <span className="logo-text">DemirkıranCAFE</span>
                     </div>
 
@@ -393,13 +397,21 @@ function App() {
                                 </div>
                             </div>
                         )}
-                        {consumers.map((consumer) => (
-                            <div key={consumer.id} className="user-item">
-                                <Avatar name={`User-${consumer.id.slice(0, 4)}`} size="sm" />
-                                <span className="user-name">Kullanıcı</span>
-                                <span className="user-media">{consumer.kind === 'video' ? '📹' : '🎤'}</span>
-                            </div>
-                        ))}
+                        {peers.map((peer) => {
+                            const peerConsumers = consumers.filter(c => c.peerId === peer.id);
+                            const hasVideo = peerConsumers.some(c => c.kind === 'video');
+                            const hasAudio = peerConsumers.some(c => c.kind === 'audio');
+
+                            return (
+                                <div key={peer.id} className="user-item">
+                                    <Avatar name={peer.username} size="sm" />
+                                    <span className="user-name">{peer.username}</span>
+                                    <span className="user-media">
+                                        {hasVideo && '📹'} {hasAudio && '🎤'}
+                                    </span>
+                                </div>
+                            );
+                        })}
                     </div>
 
                     <div className="sidebar-footer">
@@ -498,12 +510,15 @@ function App() {
                                         {/* Diğer kullanıcıların video'ları */}
                                         {consumers
                                             .filter(c => c.kind === 'video')
-                                            .map((consumer) => (
-                                                <div key={consumer.id} className="video-container">
-                                                    <VideoPlayer stream={consumer.stream} />
-                                                    <div className="video-label">Kullanıcı</div>
-                                                </div>
-                                            ))}
+                                            .map((consumer) => {
+                                                const peerName = peers.find(p => p.id === consumer.peerId)?.username || 'Kullanıcı';
+                                                return (
+                                                    <div key={consumer.id} className="video-container">
+                                                        <VideoPlayer stream={consumer.stream} />
+                                                        <div className="video-label">{peerName}</div>
+                                                    </div>
+                                                );
+                                            })}
                                     </div>
                                 </div>
 

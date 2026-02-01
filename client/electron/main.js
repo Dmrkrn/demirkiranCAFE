@@ -18,6 +18,12 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const log = require('electron-log');
+
+// Loglama ayarları
+log.transports.file.level = 'info';
+autoUpdater.logger = log;
+log.info('App starting...');
 
 // Development modunda mı?
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
@@ -92,26 +98,30 @@ function createWindow() {
      * Auto-Updater Event'leri
      */
     autoUpdater.on('checking-for-update', () => {
-        console.log('🔍 Güncelleme kontrol ediliyor...');
+        log.info('🔍 Güncelleme kontrol ediliyor...');
     });
 
     autoUpdater.on('update-available', (info) => {
-        console.log('✅ Güncelleme mevcut:', info.version);
+        log.info('✅ Güncelleme mevcut:', info.version);
         mainWindow.webContents.send('update-available', info);
     });
 
     autoUpdater.on('update-not-available', () => {
-        console.log('ℹ️ Uygulama güncel');
+        log.info('ℹ️ Uygulama güncel');
     });
 
     autoUpdater.on('download-progress', (progress) => {
-        console.log(`📥 İndiriliyor: ${Math.round(progress.percent)}%`);
+        log.info(`📥 İndiriliyor: ${Math.round(progress.percent)}%`);
         mainWindow.webContents.send('update-progress', progress);
     });
 
     autoUpdater.on('update-downloaded', (info) => {
-        console.log('📦 Güncelleme indirildi, yeniden başlatılacak');
+        log.info('📦 Güncelleme indirildi, yeniden başlatılacak');
         mainWindow.webContents.send('update-downloaded', info);
+    });
+
+    autoUpdater.on('error', (err) => {
+        log.error('❌ Güncelleme hatası:', err);
     });
 
     autoUpdater.on('error', (err) => {

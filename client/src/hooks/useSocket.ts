@@ -14,9 +14,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// Sunucu adresi (localhost yerine Yerel IP kullanıyoruz ki arkadaşlar bağlanabilsin)
-// DİKKAT: IP adresi değişirse burayı güncellemen gerekir! (ipconfig ile bak)
-const SERVER_URL = 'http://192.168.1.105:3000';
+// Sunucu adresi (VPS IP Adresi)
+const SERVER_URL = 'http://157.230.125.137:3000';
 
 interface ChatMessage {
     id: string;
@@ -37,12 +36,19 @@ interface UseSocketReturn {
 
     // Chat event listener
     onChatMessage: (callback: (msg: ChatMessage) => void) => () => void;
+
+    // Users
+    peers: Array<{ id: string; username: string }>;
+    fetchPeers: () => Promise<void>;
 }
 
 export function useSocket(): UseSocketReturn {
     const socketRef = useRef<Socket | null>(null);
     const [isConnected, setIsConnected] = useState(false);
     const [clientId, setClientId] = useState<string | null>(null);
+
+    // Peer listesi
+    const [peers, setPeers] = useState<Array<{ id: string; username: string }>>([]);
 
     useEffect(() => {
         // Socket.io bağlantısı oluştur
@@ -71,16 +77,22 @@ export function useSocket(): UseSocketReturn {
             console.log('❌ Bağlantı koptu:', reason);
             setIsConnected(false);
             setClientId(null);
+            setPeers([]); // Peer listesini temizle
         });
 
         // Yeni kullanıcı katıldığında
-        socket.on('peer-joined', (data: { peerId: string }) => {
-            console.log('👤 Yeni kullanıcı katıldı:', data.peerId);
+        socket.on('peer-joined', (data: { peerId: string; username: string }) => {
+            console.log('👤 Yeni kullanıcı katıldı:', data.peerId, data.username);
+            setPeers((prev) => {
+                if (prev.find(p => p.id === data.peerId)) return prev;
+                return [...prev, { id: data.peerId, username: data.username }];
+            });
         });
 
         // Kullanıcı ayrıldığında
         socket.on('peer-left', (data: { peerId: string }) => {
             console.log('👋 Kullanıcı ayrıldı:', data.peerId);
+            setPeers((prev) => prev.filter(p => p.id !== data.peerId));
         });
 
         // Yeni producer (video/ses kaynağı) oluşturulduğunda
@@ -135,6 +147,20 @@ export function useSocket(): UseSocketReturn {
     }, []);
 
     /**
+     * Mevcut kullanıcıları getir
+     */
+    const fetchPeers = useCallback(async () => {
+        try {
+            const response = await request<{ users: Array<{ id: string; username: string }> }, any>('getUsers');
+            if (response && response.users) {
+                setPeers(response.users);
+            }
+        } catch (error) {
+            console.error('Kullanıcı listesi alınamadı:', error);
+        }
+    }, [request]);
+
+    /**
      * Chat mesajı dinleyicisi ekle
      * Temizleme fonksiyonu döner
      */
@@ -153,8 +179,10 @@ export function useSocket(): UseSocketReturn {
         socket: socketRef.current,
         isConnected,
         clientId,
+        peers,
         emit,
         request,
+        fetchPeers,
         onChatMessage,
     };
 }

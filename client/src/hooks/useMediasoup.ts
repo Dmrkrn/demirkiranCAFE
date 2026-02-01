@@ -47,6 +47,7 @@ interface Producer {
 interface Consumer {
     id: string;
     producerId: string;
+    peerId: string; // <-- YENİ: Hangi kullanıcıya ait
     kind: 'audio' | 'video';
     consumer: types.Consumer;
     stream: MediaStream;
@@ -306,6 +307,8 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
         }
     }, [request]);
 
+
+
     /**
      * Tek bir producer'ı consume et
      */
@@ -321,6 +324,7 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
                     producerId: string;
                     kind: 'audio' | 'video';
                     rtpParameters: types.RtpParameters;
+                    peerId: string; // <-- YENİ
                 }
             >('consume', {
                 producerId,
@@ -341,12 +345,13 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
             setConsumers(prev => [...prev, {
                 id: consumer.id,
                 producerId: consumeParams.producerId,
+                peerId: consumeParams.peerId, // <-- YENİ
                 kind: consumeParams.kind,
                 consumer,
                 stream,
             }]);
 
-            console.log(`✅ ${consumeParams.kind} consumer oluşturuldu:`, consumer.id);
+            console.log(`✅ ${consumeParams.kind} consumer oluşturuldu:`, consumer.id, 'user:', consumeParams.peerId);
         } catch (error) {
             console.error('❌ Consumer oluşturulamadı:', error);
         }

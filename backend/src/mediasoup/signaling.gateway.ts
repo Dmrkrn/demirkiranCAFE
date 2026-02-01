@@ -251,11 +251,17 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             // Client bilgilerini güncelle
             clientInfo.consumers.push(consumer.id);
 
+            // Producer sahibini bul (peerId)
+            const producerOwnerEntry = Array.from(this.clients.entries())
+                .find(([_, info]) => info.producers.includes(data.producerId));
+            const producerPeerId = producerOwnerEntry ? producerOwnerEntry[0] : null;
+
             return {
                 consumerId: consumer.id,
                 producerId: consumer.producerId,
                 kind: consumer.kind,
                 rtpParameters: consumer.rtpParameters,
+                peerId: producerPeerId, // <-- YENİ: Stream'in kime ait olduğu
             };
         } catch (error) {
             this.logger.error(`Consume hatası: ${error.message}`);
