@@ -11,6 +11,7 @@ import { Logger } from '@nestjs/common';
 import { Server, Socket } from 'socket.io';
 import { MediasoupService } from './mediasoup.service';
 import { types as mediasoupTypes } from 'mediasoup';
+import { ConfigService } from '@nestjs/config';
 
 /**
  * SignalingGateway
@@ -51,7 +52,10 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         consumers: string[];
     }> = new Map();
 
-    constructor(private readonly mediasoupService: MediasoupService) { }
+    constructor(
+        private readonly mediasoupService: MediasoupService,
+        private readonly configService: ConfigService
+    ) { }
 
     /**
      * Client bağlandığında
@@ -294,8 +298,6 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         return { success: true };
     }
 
-    // Oda şifresi (basit güvenlik)
-    private readonly ROOM_PASSWORD = '19071907';
 
     /**
      * Kullanıcı adını ayarla ve odaya katıl
@@ -307,7 +309,8 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         @MessageBody() data: { username: string; password?: string },
     ) {
         // Şifre kontrolü
-        if (data.password !== this.ROOM_PASSWORD) {
+        const envPassword = this.configService.get<string>('ROOM_PASSWORD', 'fallbackPassword');
+        if (data.password !== envPassword) {
             this.logger.warn(`🚫 Yanlış şifre denemesi: ${client.id}`);
             return { success: false, error: 'Yanlış şifre!' };
         }

@@ -195,9 +195,9 @@ const SOCKET_URL = 'http://localhost:3000';
 ```
 
 ### Oda Şifresi
-`backend/src/mediasoup/signaling.gateway.ts` dosyasında:
-```typescript
-private readonly ROOM_PASSWORD = 'sifreniz';
+`backend/.env` dosyasını oluşturun ve şifreyi belirleyin:
+```env
+ROOM_PASSWORD=istediğiniz_zor_sifre
 ```
 
 ---
