@@ -28,6 +28,14 @@ log.info('App starting...');
 // Development modunda mı?
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
+// Electron Audio/WebRTC optimizasyonları
+app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer');
+app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling');
+app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
+app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+
 // Auto-updater ayarları
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;

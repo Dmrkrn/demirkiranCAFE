@@ -110,6 +110,8 @@ export function useMediaDevices(): UseMediaDevicesReturn {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
+                sampleRate: 48000,          // Yüksek kalite ses
+                channelCount: 2,             // Stereo
             },
         }
     ): Promise<MediaStream | null> => {
