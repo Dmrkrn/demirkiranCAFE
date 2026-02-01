@@ -1,7 +1,7 @@
 <h1 align="center">DemirkiranCAFE</h1>
 
 <p align="center">
-  <strong>🎮 Arkadaşlar arası sesli/görüntülü iletişim uygulaması</strong>
+  <strong>🎮 Arkadaşlar arası sesli/görüntülü iletişim uygulaması / Real-time voice & video communication app for friends</strong>
 </p>
 
 <p align="center">
@@ -11,15 +11,22 @@
 </p>
 
 <p align="center">
+  <a href="#-türkçe">🇹🇷 Türkçe</a> •
+  <a href="#-english">🇬🇧 English</a>
+</p>
+
+---
+
+<h2 id="-türkçe">🇹🇷 Türkçe</h2>
+
+<p align="center">
   <a href="#-özellikler">Özellikler</a> •
   <a href="#-kurulum">Kurulum</a> •
   <a href="#%EF%B8%8F-teknolojiler">Teknolojiler</a> •
   <a href="#-mimari">Mimari</a>
 </p>
 
----
-
-## 📸 Ekran Görüntüleri
+### 📸 Ekran Görüntüleri
 
 <div align="center">
   <img src="screenshots/login.png" width="45%" alt="Giriş Ekranı">
@@ -35,9 +42,7 @@
   <img src="README_assets/screenshot_v1.0.7.png" width="80%" alt="v1.0.4 Arayüzü">
 </div>
 
----
-
-## ✨ Özellikler
+### ✨ Özellikler
 
 | Özellik | Açıklama |
 |---------|----------|
@@ -50,183 +55,140 @@
 | 🎨 **Modern Arayüz** | Discord benzeri koyu tema tasarım |
 | ⌨️ **Kısayol Tuşları** | M: Mikrofon, D: Sağır modu |
 
----
+### 🚀 Kurulum
 
-## 🚀 Kurulum
-
-### Kullanıcılar İçin (Hazır Uygulama)
+#### Kullanıcılar İçin (Hazır Uygulama)
 
 1. [Releases](https://github.com/Dmrkrn/demirkiranCAFE/releases) sayfasından son sürümü indir
 2. `DemirkiranCAFE Setup X.X.X.exe` dosyasını çalıştır
 3. Kurulumu tamamla ve uygulamayı aç
 4. Kullanıcı adı ve oda şifresini girerek bağlan
 
-### Geliştiriciler İçin
+#### Geliştiriciler İçin
 
-#### Gereksinimler
-- Node.js 18+ 
-- Python 3.x (mediasoup build için)
-- Visual Studio Build Tools
+**Gereksinimler:** Node.js 18+, Python 3.x, Visual Studio Build Tools
 
-#### Backend
+**Backend:**
 ```bash
 cd backend
 npm install
 npm run start:dev
 ```
 
-#### Client
+**Client:**
 ```bash
 cd client
 npm install
 npm run electron:dev
 ```
 
-#### Production Build
+**Production Build:**
 ```bash
 cd client
 npm run electron:build
 ```
 
----
+### 🛠️ Teknolojiler
 
-## 🛠️ Teknolojiler
+*   **Backend:** NestJS, mediasoup (SFU), Socket.io, TypeScript
+*   **Frontend:** Electron, React 19, Vite, mediasoup-client, TypeScript
+*   **Altyapı:** WebRTC, DTLS/SRTP, electron-updater, electron-builder
 
-### Backend
-| Teknoloji | Kullanım |
-|-----------|----------|
-| **NestJS** | Backend framework |
-| **mediasoup** | SFU (Selective Forwarding Unit) |
-| **Socket.io** | WebSocket signaling |
-| **TypeScript** | Tip güvenliği |
+### 🏗️ Mimari
 
-### Frontend
-| Teknoloji | Kullanım |
-|-----------|----------|
-| **Electron** | Masaüstü uygulaması |
-| **React 19** | UI framework |
-| **Vite** | Build tool |
-| **mediasoup-client** | WebRTC client |
-| **TypeScript** | Tip güvenliği |
+Uygulama **mediasoup** kullanarak SFU (Selective Forwarding Unit) mimarisi üzerine kuruludur. Bu sayede sunucu streamleri transcode etmez, sadece yönlendirir. Bu da düşük CPU kullanımı ve yüksek performans sağlar.
 
-### Altyapı
-| Teknoloji | Kullanım |
-|-----------|----------|
-| **WebRTC** | Peer-to-peer medya iletimi |
-| **DTLS/SRTP** | Şifreli medya aktarımı |
-| **electron-updater** | Otomatik güncelleme |
-| **electron-builder** | Cross-platform build |
+### 📝 Güncelleme Geçmişi
 
----
-
-## 🏗️ Mimari
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     DemirkiranCAFE                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────┐     WebSocket      ┌─────────────────┐    │
-│  │   Client 1  │◄──────────────────►│                 │    │
-│  │  (Electron) │     (Signaling)    │                 │    │
-│  └─────────────┘                    │                 │    │
-│         │                           │   NestJS +      │    │
-│         │ WebRTC/UDP                │   mediasoup     │    │
-│         │ (Media)                   │   (SFU Server)  │    │
-│         ▼                           │                 │    │
-│  ┌─────────────┐     WebRTC/UDP     │                 │    │
-│  │   Client 2  │◄──────────────────►│                 │    │
-│  └─────────────┘                    │                 │    │
-│         │                           │                 │    │
-│         ▼                           │                 │    │
-│  ┌─────────────┐     WebRTC/UDP     │                 │    │
-│  │   Client N  │◄──────────────────►│                 │    │
-│  └─────────────┘                    └─────────────────┘    │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### SFU (Selective Forwarding Unit) Avantajları
-
-- ✅ **Düşük CPU kullanımı** - Sunucu transkod yapmaz
-- ✅ **Düşük gecikme** - Direkt yönlendirme
-- ✅ **Ölçeklenebilir** - Çok kullanıcı desteği
-- ✅ **Kalite kontrolü** - Simulcast/SVC desteği
-
----
-
-## 📁 Proje Yapısı
-
-```
-demirkiranCAFE/
-├── backend/                    # NestJS Backend
-│   ├── src/
-│   │   ├── mediasoup/         # SFU + Signaling
-│   │   └── main.ts            # Entry point
-│   └── package.json
-│
-├── client/                     # Electron + React Client
-│   ├── electron/              # Electron main process
-│   │   ├── main.js
-│   │   └── preload.js
-│   ├── src/
-│   │   ├── components/        # React bileşenleri
-│   │   ├── hooks/             # Custom hooks
-│   │   ├── styles/            # CSS dosyaları
-│   │   └── App.tsx            # Ana bileşen
-│   ├── public/                # Statik dosyalar
-│   └── package.json
-│
-└── README.md
-```
-
----
-
-## ⌨️ Kısayol Tuşları
-
-| Tuş | İşlev |
-|-----|-------|
-| `M` | Mikrofonu aç/kapat |
-| `D` | Sağır modunu aç/kapat |
-
----
-
-## 🔧 Yapılandırma
-
-### Backend Bağlantı Adresi
-`client/src/hooks/useSocket.ts` dosyasında:
-```typescript
-const SOCKET_URL = 'http://localhost:3000';
-```
-
-### Oda Şifresi
-`backend/.env` dosyasını oluşturun ve şifreyi belirleyin:
-```env
-ROOM_PASSWORD=istediğiniz_zor_sifre
-```
-
----
-
-## 📝 Güncelleme Geçmişi
-
-### v1.0.4 (2026-02-02)
+**v1.0.4 (2026-02-02)**
 - 🎨 **Arayüz İyileştirmeleri**: İkonlar yenilendi ve hizalama sorunları giderildi.
 - 🎛️ **Gelişmiş Ses Kontrolü**: Kullanıcı bazlı ses seviyesi ayarı eklendi.
 - 🖥️ **Tam Ekran Modu**: Videolara tıklayarak tam ekran yapabilme özelliği.
 - 🎤 **Mikrofon Testi**: Ayarlar panelinde görsel mikrofon testi ve loopback özelliği.
-- 🐛 **Hata Düzeltmeleri**: Layout kaymaları ve build sorunları giderildi.
-
-### v1.0.0 (2026-02-01)
-- 🎉 İlk beta sürümü
-- ✅ Sesli/görüntülü sohbet
-- ✅ Ekran paylaşımı
-- ✅ Oda şifresi koruması
-- ✅ Otomatik güncelleme sistemi
-- ✅ Modern kullanıcı arayüzü
 
 ---
 
-## 👨‍💻 Geliştirici
+<h2 id="-english">🇬🇧 English</h2>
+
+<p align="center">
+  <a href="#-features">Features</a> •
+  <a href="#-installation">Installation</a> •
+  <a href="#%EF%B8%8F-tech-stack">Tech Stack</a> •
+  <a href="#-architecture">Architecture</a>
+</p>
+
+### 📸 Screenshots
+
+*(See screenshots above / Yukarıdaki ekran görüntülerine bakınız)*
+
+### ✨ Features
+
+| Feature | Description |
+|---------|-------------|
+| 🎤 **Voice Chat** | Low latency, high quality audio transmission |
+| 📹 **Video Chat** | Up to 1080p video quality |
+| 🖥️ **Screen Share** | Share games, apps or full screen |
+| 👥 **10 Users** | Support for up to 10 concurrent users |
+| 🔐 **Password Protection** | Room password system for privacy |
+| 🔄 **Auto Update** | Automatically downloads new versions |
+| 🎨 **Modern UI** | Discord-like dark theme design |
+| ⌨️ **Shortcuts** | M: Toggle Mic, D: Deafen |
+
+### 🚀 Installation
+
+#### For Users (Ready to Use)
+
+1. Download the latest version from [Releases](https://github.com/Dmrkrn/demirkiranCAFE/releases)
+2. Run `DemirkiranCAFE Setup X.X.X.exe`
+3. Complete installation and launch the app
+4. Connect using your username and room password
+
+#### For Developers
+
+**Prerequisites:** Node.js 18+, Python 3.x, Visual Studio Build Tools
+
+**Backend:**
+```bash
+cd backend
+npm install
+npm run start:dev
+```
+
+**Client:**
+```bash
+cd client
+npm install
+npm run electron:dev
+```
+
+**Production Build:**
+```bash
+cd client
+npm run electron:build
+```
+
+### 🛠️ Tech Stack
+
+*   **Backend:** NestJS, mediasoup (SFU), Socket.io, TypeScript
+*   **Frontend:** Electron, React 19, Vite, mediasoup-client, TypeScript
+*   **Infrastructure:** WebRTC, DTLS/SRTP, electron-updater, electron-builder
+
+### 🏗️ Architecture
+
+The application is built on **mediasoup** using SFU (Selective Forwarding Unit) architecture. The server routes media streams without transcoding, ensuring low CPU usage and high performance.
+
+### 📝 Changelog
+
+**v1.0.4 (2026-02-02)**
+- 🎨 **UI Improvements**: Updated icons and fixed alignment issues.
+- 🎛️ **Advanced Audio Control**: Added per-user volume control.
+- 🖥️ **Fullscreen Mode**: Click on videos to toggle fullscreen.
+- 🎤 **Mic Test**: Visual microphone test and loopback feature in settings.
+- 🐛 **Bug Fixes**: Resolved layout shifts and build issues.
+
+---
+
+## 👨‍💻 Developer
 
 **Dmrkrn**
 
@@ -234,10 +196,6 @@ ROOM_PASSWORD=istediğiniz_zor_sifre
 - LinkedIn: [@Dmrkrn](https://www.linkedin.com/in/dmrkrn/)
 - Portfolio: [@Dmrkrn](https://dmrkrn.com/)
 
----
+## 📄 License
 
-## 📄 Lisans
-
-Bu proje [MIT](LICENSE) lisansı altında lisanslanmıştır.
-
----
+This project is licensed under the [MIT](LICENSE) license.
