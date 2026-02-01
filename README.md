@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="#-türkçe">🇹🇷 Türkçe</a> •
-  <a href="#-english">🇬🇧 English</a>
+  <a href="#-english">🇺🇸 English</a>
 </p>
 
 ---
@@ -39,7 +39,7 @@
 <div align="center">
   <br/>
   <h3>Yeni Arayüz (v1.0.4)</h3>
-  <img src="README_assets/screenshot_v1.0.7.png" width="80%" alt="v1.0.4 Arayüzü">
+  <img src="screenshots/settings_v1.0.4.jpg" width="80%" alt="v1.0.4 Arayüzü">
 </div>
 
 ### ✨ Özellikler
@@ -108,7 +108,7 @@ Uygulama **mediasoup** kullanarak SFU (Selective Forwarding Unit) mimarisi üzer
 
 ---
 
-<h2 id="-english">🇬🇧 English</h2>
+<h2 id="-english">🇺🇸 English</h2>
 
 <p align="center">
   <a href="#-features">Features</a> •
