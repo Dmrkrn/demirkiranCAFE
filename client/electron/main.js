@@ -33,7 +33,9 @@ function createWindow() {
 
         // Pencere stilleri (Discord benzeri görünüm)
         backgroundColor: '#1a1a2e', // Koyu arka plan
-        frame: true, // Sistem pencere çerçevesi
+        frame: false, // Çerçevesiz pencere (Modern görünüm için)
+        titleBarStyle: 'hidden', // macOS için
+        autoHideMenuBar: true, // Menu bar'ı gizle
 
         // Web ayarları
         webPreferences: {
@@ -43,11 +45,14 @@ function createWindow() {
         },
     });
 
+    // Menü çubuğunu tamamen kaldır (Windows/Linux için)
+    mainWindow.setMenuBarVisibility(false);
+
     // Development'ta Vite dev server'dan yükle
     if (isDev) {
         mainWindow.loadURL('http://localhost:5173');
-        // DevTools'u aç (geliştirme için)
-        mainWindow.webContents.openDevTools();
+        // DevTools'u otomatik AÇMA (Kullanıcı isteği üzerine)
+        // mainWindow.webContents.openDevTools();
     } else {
         // Production'da build edilmiş dosyaları yükle
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
@@ -57,6 +62,25 @@ function createWindow() {
     mainWindow.on('closed', () => {
         // macOS'ta pencere kapansa bile uygulama çalışmaya devam eder
         // Windows/Linux'ta uygulama kapanır
+    });
+
+    /**
+     * Pencere Kontrol IPC Handler'ları
+     */
+    ipcMain.on('window-minimize', () => {
+        mainWindow.minimize();
+    });
+
+    ipcMain.on('window-maximize', () => {
+        if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow.maximize();
+        }
+    });
+
+    ipcMain.on('window-close', () => {
+        mainWindow.close();
     });
 
     return mainWindow;

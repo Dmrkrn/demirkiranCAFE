@@ -28,7 +28,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     /**
      * Electron versiyonu
      */
+    /**
+     * Electron versiyonu
+     */
     electronVersion: process.versions.electron,
+
+    /**
+     * Pencere Kontrolleri
+     */
+    minimizeWindow: () => ipcRenderer.send('window-minimize'),
+    maximizeWindow: () => ipcRenderer.send('window-maximize'),
+    closeWindow: () => ipcRenderer.send('window-close'),
 });
 
 // Window nesnesine eklediğimizi TypeScript'e bildirmek için

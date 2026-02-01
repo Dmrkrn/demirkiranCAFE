@@ -16,6 +16,9 @@ interface ElectronAPI {
     getDesktopSources: () => Promise<DesktopSource[]>;
     platform: string;
     electronVersion: string;
+    minimizeWindow: () => void;
+    maximizeWindow: () => void;
+    closeWindow: () => void;
 }
 
 declare global {

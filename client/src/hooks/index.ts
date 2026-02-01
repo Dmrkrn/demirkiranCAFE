@@ -5,3 +5,4 @@ export { useMediaDevices } from './useMediaDevices';
 export { useScreenShare } from './useScreenShare';
 export { useVoiceActivity } from './useVoiceActivity';
 export { useQualitySettings, QUALITY_PRESETS, SIMULCAST_ENCODINGS } from './useQualitySettings';
+export { usePing } from './usePing';

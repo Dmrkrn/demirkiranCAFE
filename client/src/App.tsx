@@ -1,10 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActivity, useQualitySettings } from './hooks';
+import { useSocket, useMediasoup, useMediaDevices, useScreenShare, useVoiceActivity, useQualitySettings, usePing } from './hooks';
 import { ScreenSharePicker } from './components/ScreenSharePicker';
 import { QualitySelector } from './components/QualitySelector';
 import { VolumeIndicator } from './components/VolumeIndicator';
 import { Avatar } from './components/Avatar';
 import { ChatPanel } from './components/ChatPanel';
+import { TitleBar } from './components/TitleBar';
+import { PingMeter } from './components/PingMeter';
+import { SettingsPanel } from './components/SettingsPanel';
 import './styles/App.css';
 
 /**
@@ -26,6 +29,7 @@ function App() {
 
     // Chat state
     const [isChatOpen, setIsChatOpen] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const [chatMessages, setChatMessages] = useState<Array<{
         id: string;
         senderId: string;
@@ -75,6 +79,9 @@ function App() {
 
     // Kalite Ayarları
     const { currentQuality, setQuality, getConstraints } = useQualitySettings();
+
+    // Ping Ölçer
+    const { ping, pingStatus } = usePing();
 
     // Electron API kontrolü
     const [isElectron, setIsElectron] = useState(false);
@@ -252,6 +259,7 @@ function App() {
 
     return (
         <div className="app">
+            <TitleBar />
             {/* Ekran Paylaşımı Picker Modal */}
             {showScreenPicker && (
                 <ScreenSharePicker
@@ -261,235 +269,237 @@ function App() {
                 />
             )}
 
+            {/* Settings Panel */}
+            <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
             {/* Sol Sidebar */}
-            <aside className="sidebar">
-                <div className="logo">
-                    <span className="logo-icon">☕</span>
-                    <span className="logo-text">DemirkiranCAFE</span>
-                </div>
-
-                <div className="room-info">
-                    <div className="room-name">Ana Oda</div>
-                    <div className="room-status">
-                        {isConnected ? (
-                            <span className="status-connected">● Sunucuya Bağlı</span>
-                        ) : (
-                            <span className="status-disconnected">○ Bağlantı Yok</span>
-                        )}
+            <div className="app-content-wrapper">
+                <aside className="sidebar">
+                    <div className="logo">
+                        <img src="/logo.png" alt="Logo" className="logo-img" />
+                        <span className="logo-text">DemirkıranCAFE</span>
                     </div>
-                    {clientId && (
-                        <div className="client-id">ID: {clientId.slice(0, 8)}...</div>
-                    )}
-                </div>
 
-                <div className="users-section">
-                    <h3>Kullanıcılar</h3>
-                    {isJoined && (
-                        <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
-                            <Avatar name={username} size="sm" isSpeaking={isSpeaking} />
-                            <span className="user-name">{username} (Sen)</span>
-                            {audioEnabled && <span className="user-mic-icon">🎤</span>}
-                            {isSharing && <span className="user-sharing">🖥️</span>}
-                        </div>
-                    )}
-                    {consumers.map((consumer) => (
-                        <div key={consumer.id} className="user-item">
-                            <Avatar name={`User-${consumer.id.slice(0, 4)}`} size="sm" />
-                            <span className="user-name">Kullanıcı</span>
-                            <span className="user-media">{consumer.kind === 'video' ? '📹' : '🎤'}</span>
-                        </div>
-                    ))}
-                </div>
-
-                <div className="sidebar-footer">
-                    {isElectron && audioEnabled && (
-                        <div className="footer-volume">
-                            <VolumeIndicator volume={volume} isSpeaking={isSpeaking} />
-                        </div>
-                    )}
-                    {isElectron && (
-                        <div className="electron-badge">Electron</div>
-                    )}
-                </div>
-            </aside>
-
-            {/* Ana İçerik */}
-            <main className="main-content">
-                {!isJoined ? (
-                    <div className="connect-screen">
-                        <div className="connect-card">
-                            <h1>Hoş Geldin!</h1>
-                            <p>Odaya katılmak için kullanıcı adını gir</p>
-
-                            <input
-                                type="text"
-                                placeholder="Kullanıcı Adı"
-                                value={username}
-                                onChange={(e) => setUsername(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
-                                className="username-input"
-                                disabled={joiningStatus === 'connecting'}
-                            />
-
-                            <button
-                                onClick={handleJoinRoom}
-                                className="connect-button"
-                                disabled={joiningStatus === 'connecting' || !isConnected}
-                            >
-                                {joiningStatus === 'connecting' ? 'Bağlanıyor...' :
-                                    !isConnected ? 'Sunucu Bekleniyor...' : 'Odaya Katıl'}
-                            </button>
-
-                            {!isConnected && (
-                                <p className="warning-text">
-                                    ⚠️ Backend'e bağlanılamıyor. <code>npm run start:dev</code> çalışıyor mu?
-                                </p>
+                    <div className="room-info">
+                        <div className="room-name">Ana Oda</div>
+                        <div className="room-status">
+                            {isConnected ? (
+                                <span className="status-connected">● Sunucuya Bağlı</span>
+                            ) : (
+                                <span className="status-disconnected">○ Bağlantı Yok</span>
                             )}
                         </div>
+                        {clientId && (
+                            <div className="client-id">ID: {clientId.slice(0, 8)}...</div>
+                        )}
                     </div>
-                ) : (
-                    <div className="room-view">
-                        {/* Video ve Chat container - yan yana */}
-                        <div className="room-content">
-                            {/* Sol: Video Grid */}
-                            <div className="video-section">
-                                <div className="video-grid">
-                                    {/* Kendi video'muz */}
-                                    <div className="video-container self-video">
-                                        <video
-                                            ref={localVideoRef}
-                                            autoPlay
-                                            muted
-                                            playsInline
-                                            className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
-                                        />
-                                        {!videoEnabled && (
-                                            <div className="video-placeholder-content">
-                                                <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
-                                                <div className="placeholder-name">{username}</div>
-                                                <div className="placeholder-text">Kamera kapalı</div>
-                                            </div>
-                                        )}
-                                        <div className="video-label">{username} (Sen)</div>
-                                    </div>
 
-                                    {/* Ekran paylaşımı video'su */}
-                                    {isSharing && screenStream && (
-                                        <div className="video-container screen-share-video">
+                    <div className="users-section">
+                        <h3>Kullanıcılar</h3>
+                        {isJoined && (
+                            <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
+                                <Avatar name={username} size="sm" isSpeaking={isSpeaking} />
+                                <span className="user-name">{username} (Sen)</span>
+                                {audioEnabled && <span className="user-mic-icon">🎤</span>}
+                                {isSharing && <span className="user-sharing">🖥️</span>}
+                            </div>
+                        )}
+                        {consumers.map((consumer) => (
+                            <div key={consumer.id} className="user-item">
+                                <Avatar name={`User-${consumer.id.slice(0, 4)}`} size="sm" />
+                                <span className="user-name">Kullanıcı</span>
+                                <span className="user-media">{consumer.kind === 'video' ? '📹' : '🎤'}</span>
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="sidebar-footer">
+                        <PingMeter ping={ping} status={pingStatus} />
+                        <button className="settings-btn" onClick={() => setShowSettings(true)} title="Ayarlar">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
+                            </svg>
+                        </button>
+                    </div>
+                </aside>
+
+                {/* Ana İçerik */}
+                <main className="main-content">
+                    {!isJoined ? (
+                        <div className="connect-screen">
+                            <div className="connect-card">
+                                <h1>Hoş Geldin!</h1>
+                                <p>Odaya katılmak için kullanıcı adını gir</p>
+
+                                <input
+                                    type="text"
+                                    placeholder="Kullanıcı Adı"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
+                                    className="username-input"
+                                    disabled={joiningStatus === 'connecting'}
+                                />
+
+                                <button
+                                    onClick={handleJoinRoom}
+                                    className="connect-button"
+                                    disabled={joiningStatus === 'connecting' || !isConnected}
+                                >
+                                    {joiningStatus === 'connecting' ? 'Bağlanıyor...' :
+                                        !isConnected ? 'Sunucu Bekleniyor...' : 'Odaya Katıl'}
+                                </button>
+
+                                {!isConnected && (
+                                    <p className="warning-text">
+                                        ⚠️ Backend'e bağlanılamıyor. <code>npm run start:dev</code> çalışıyor mu?
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="room-view">
+                            {/* Video ve Chat container - yan yana */}
+                            <div className="room-content">
+                                {/* Sol: Video Grid */}
+                                <div className="video-section">
+                                    <div className="video-grid">
+                                        {/* Kendi video'muz */}
+                                        <div className="video-container self-video">
                                             <video
-                                                ref={screenVideoRef}
+                                                ref={localVideoRef}
                                                 autoPlay
                                                 muted
                                                 playsInline
-                                                className="video-element"
+                                                className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
                                             />
-                                            <div className="video-label">🖥️ Ekran Paylaşımı</div>
-                                        </div>
-                                    )}
-
-                                    {/* Diğer kullanıcıların video'ları */}
-                                    {consumers
-                                        .filter(c => c.kind === 'video')
-                                        .map((consumer) => (
-                                            <div key={consumer.id} className="video-container">
-                                                <VideoPlayer stream={consumer.stream} />
-                                                <div className="video-label">Kullanıcı</div>
-                                            </div>
-                                        ))}
-                                </div>
-                            </div>
-
-                            {/* Sağ: Chat Panel */}
-                            <div className="chat-section">
-                                <div className="chat-header-integrated">
-                                    <h3>💬 Sohbet</h3>
-                                </div>
-                                <div className="chat-messages-integrated">
-                                    {chatMessages.length === 0 ? (
-                                        <div className="chat-empty-integrated">
-                                            <span>💬</span>
-                                            <p>Henüz mesaj yok</p>
-                                        </div>
-                                    ) : (
-                                        chatMessages.map((msg) => {
-                                            const isOwnMessage = msg.senderId === clientId;
-                                            return (
-                                                <div
-                                                    key={msg.id}
-                                                    className={`chat-msg ${isOwnMessage ? 'own' : ''}`}
-                                                >
-                                                    <Avatar name={msg.senderName} size="sm" />
-                                                    <div className="msg-content">
-                                                        <span className="msg-sender">{msg.senderName}</span>
-                                                        <div className="msg-bubble">{msg.message}</div>
-                                                    </div>
+                                            {!videoEnabled && (
+                                                <div className="video-placeholder-content">
+                                                    <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
+                                                    <div className="placeholder-name">{username}</div>
+                                                    <div className="placeholder-text">Kamera kapalı</div>
                                                 </div>
-                                            );
-                                        })
-                                    )}
+                                            )}
+                                            <div className="video-label">{username} (Sen)</div>
+                                        </div>
+
+                                        {/* Ekran paylaşımı video'su */}
+                                        {isSharing && screenStream && (
+                                            <div className="video-container screen-share-video">
+                                                <video
+                                                    ref={screenVideoRef}
+                                                    autoPlay
+                                                    muted
+                                                    playsInline
+                                                    className="video-element"
+                                                />
+                                                <div className="video-label">🖥️ Ekran Paylaşımı</div>
+                                            </div>
+                                        )}
+
+                                        {/* Diğer kullanıcıların video'ları */}
+                                        {consumers
+                                            .filter(c => c.kind === 'video')
+                                            .map((consumer) => (
+                                                <div key={consumer.id} className="video-container">
+                                                    <VideoPlayer stream={consumer.stream} />
+                                                    <div className="video-label">Kullanıcı</div>
+                                                </div>
+                                            ))}
+                                    </div>
                                 </div>
-                                <form className="chat-input-integrated" onSubmit={(e) => {
-                                    e.preventDefault();
-                                    const input = e.currentTarget.querySelector('input') as HTMLInputElement;
-                                    if (input.value.trim()) {
-                                        handleSendMessage(input.value.trim());
-                                        input.value = '';
-                                    }
-                                }}>
-                                    <input
-                                        type="text"
-                                        placeholder="Mesaj yaz..."
-                                        maxLength={500}
-                                    />
-                                    <button type="submit">➤</button>
-                                </form>
+
+                                {/* Sağ: Chat Panel */}
+                                <div className="chat-section">
+                                    <div className="chat-header-integrated">
+                                        <h3>💬 Sohbet</h3>
+                                    </div>
+                                    <div className="chat-messages-integrated">
+                                        {chatMessages.length === 0 ? (
+                                            <div className="chat-empty-integrated">
+                                                <span>💬</span>
+                                                <p>Henüz mesaj yok</p>
+                                            </div>
+                                        ) : (
+                                            chatMessages.map((msg) => {
+                                                const isOwnMessage = msg.senderId === clientId;
+                                                return (
+                                                    <div
+                                                        key={msg.id}
+                                                        className={`chat-msg ${isOwnMessage ? 'own' : ''}`}
+                                                    >
+                                                        <Avatar name={msg.senderName} size="sm" />
+                                                        <div className="msg-content">
+                                                            <span className="msg-sender">{msg.senderName}</span>
+                                                            <div className="msg-bubble">{msg.message}</div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })
+                                        )}
+                                    </div>
+                                    <form className="chat-input-integrated" onSubmit={(e) => {
+                                        e.preventDefault();
+                                        const input = e.currentTarget.querySelector('input') as HTMLInputElement;
+                                        if (input.value.trim()) {
+                                            handleSendMessage(input.value.trim());
+                                            input.value = '';
+                                        }
+                                    }}>
+                                        <input
+                                            type="text"
+                                            placeholder="Mesaj yaz..."
+                                            maxLength={500}
+                                        />
+                                        <button type="submit">➤</button>
+                                    </form>
+                                </div>
+                            </div>
+
+                            {/* Kontrol Çubuğu */}
+                            <div className="control-bar">
+                                {/* Kalite Seçici */}
+                                <QualitySelector
+                                    currentQuality={currentQuality}
+                                    onQualityChange={setQuality}
+                                />
+
+                                <div className="control-buttons">
+                                    <button
+                                        className={`control-button mic-button ${!audioEnabled ? 'muted' : ''} ${isSpeaking ? 'speaking' : ''}`}
+                                        onClick={toggleAudio}
+                                        title={audioEnabled ? 'Mikrofonu Kapat' : 'Mikrofonu Aç'}
+                                    >
+                                        {audioEnabled ? '🎤' : '🔇'}
+                                    </button>
+
+                                    <button
+                                        className={`control-button camera-button ${!videoEnabled ? 'muted' : ''}`}
+                                        onClick={handleCameraToggle}
+                                        title={videoEnabled ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
+                                    >
+                                        {videoEnabled ? '📷' : '📷'}
+                                    </button>
+                                    <button
+                                        className={`control-button screen-button ${isSharing ? 'active' : ''}`}
+                                        onClick={handleScreenShareClick}
+                                        title={isSharing ? 'Ekran Paylaşımını Durdur' : 'Ekran Paylaş'}
+                                    >
+                                        🖥️
+                                    </button>
+                                    <button
+                                        className="control-button leave-button"
+                                        onClick={handleLeaveRoom}
+                                        title="Odadan Ayrıl"
+                                    >
+                                        📴
+                                    </button>
+                                </div>
                             </div>
                         </div>
-
-                        {/* Kontrol Çubuğu */}
-                        <div className="control-bar">
-                            {/* Kalite Seçici */}
-                            <QualitySelector
-                                currentQuality={currentQuality}
-                                onQualityChange={setQuality}
-                            />
-
-                            <div className="control-buttons">
-                                <button
-                                    className={`control-button mic-button ${!audioEnabled ? 'muted' : ''} ${isSpeaking ? 'speaking' : ''}`}
-                                    onClick={toggleAudio}
-                                    title={audioEnabled ? 'Mikrofonu Kapat' : 'Mikrofonu Aç'}
-                                >
-                                    {audioEnabled ? '🎤' : '🔇'}
-                                </button>
-
-                                <button
-                                    className={`control-button camera-button ${!videoEnabled ? 'muted' : ''}`}
-                                    onClick={handleCameraToggle}
-                                    title={videoEnabled ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
-                                >
-                                    {videoEnabled ? '📷' : '📷'}
-                                </button>
-                                <button
-                                    className={`control-button screen-button ${isSharing ? 'active' : ''}`}
-                                    onClick={handleScreenShareClick}
-                                    title={isSharing ? 'Ekran Paylaşımını Durdur' : 'Ekran Paylaş'}
-                                >
-                                    🖥️
-                                </button>
-                                <button
-                                    className="control-button leave-button"
-                                    onClick={handleLeaveRoom}
-                                    title="Odadan Ayrıl"
-                                >
-                                    📴
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </main>
-
+                    )}
+                </main>
+            </div>
         </div>
     );
 }
