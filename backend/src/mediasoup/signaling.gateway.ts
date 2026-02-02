@@ -252,6 +252,13 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
 
         this.mediasoupService.closeProducer(data.producerId);
 
+        // Odaya bildir
+        const roomId = (clientInfo as any).roomId || 'main';
+        client.to(roomId).emit('producer-closed', {
+            producerId: data.producerId,
+            peerId: client.id,
+        });
+
         return { success: true };
     }
 

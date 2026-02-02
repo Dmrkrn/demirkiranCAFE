@@ -294,6 +294,12 @@ function App() {
         socket.on('peer-joined', handlePeerJoined);
         socket.on('new-producer', handleNewProducer);
 
+        // Producer kapandığında (Ekran paylaşımı durduğunda)
+        socket.on('producer-closed', (data: { producerId: string; peerId: string }) => {
+            console.log('🛑 Producer kapandı sinyali alındı:', data.producerId);
+            setAvailableScreenShares(prev => prev.filter(p => p.producerId !== data.producerId));
+        });
+
         // Bir producer kapandığında listeden çıkar (Signal lazım ama şimdilik consumer kapandığında hallediliyor mu?)
         // handleProducerClosed signalini dinlemek gerekebilir.
 
