@@ -4,6 +4,9 @@ import './SettingsPanel.css';
 interface SettingsPanelProps {
     isOpen: boolean;
     onClose: () => void;
+    onMicChange?: (deviceId: string) => void;
+    onSpeakerChange?: (deviceId: string) => void;
+    onCameraChange?: (deviceId: string) => void;
 }
 
 interface MediaDeviceInfo {
@@ -43,10 +46,24 @@ const formatKeyCode = (code: string): string => {
     if (code === 'ControlLeft' || code === 'ControlRight') return 'Ctrl';
     if (code === 'ShiftLeft' || code === 'ShiftRight') return 'Shift';
     if (code === 'AltLeft' || code === 'AltRight') return 'Alt';
+
+    // Turkish Q Layout Mappings (Approximate for display)
+    if (code === 'Semicolon') return 'Ş';
+    if (code === 'Quote') return 'İ';
+    if (code === 'BracketLeft') return 'Ğ';
+    if (code === 'BracketRight') return 'Ü';
+    if (code === 'Comma') return 'Ö';
+    if (code === 'Period') return 'Ç';
+    if (code === 'Slash') return '.';
+    if (code === 'Backslash') return ',';
+    if (code === 'Backquote') return '"';
+    if (code === 'Equal') return '-';
+    if (code === 'Minus') return '*';
+
     return code;
 };
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose }) => {
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onMicChange, onSpeakerChange, onCameraChange }) => {
     const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
     const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
     const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
@@ -207,8 +224,22 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
     useEffect(() => {
         const loadDevices = async () => {
             try {
-                // Önce izin al
-                await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+                // Önce izin al (Ayrı ayrı dene, biri yoksa diğeri çalışsın)
+                try {
+                    const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    // İzin alındı, hemen kapat
+                    audioStream.getTracks().forEach(track => track.stop());
+                } catch (e) {
+                    console.warn('Mikrofon izni alınamadı veya cihaz yok:', e);
+                }
+
+                try {
+                    const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                    // İzin alındı, hemen kapat
+                    videoStream.getTracks().forEach(track => track.stop());
+                } catch (e) {
+                    console.warn('Kamera izni alınamadı veya cihaz yok:', e);
+                }
 
                 const devices = await navigator.mediaDevices.enumerateDevices();
 
@@ -274,7 +305,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                         <h3>🎤 Mikrofon</h3>
                         <select
                             value={selectedMic}
-                            onChange={(e) => setSelectedMic(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedMic(e.target.value);
+                                onMicChange?.(e.target.value);
+                            }}
                             className="settings-select"
                         >
                             {audioInputs.map(device => (
@@ -379,7 +413,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                         <h3>🔊 Hoparlör</h3>
                         <select
                             value={selectedSpeaker}
-                            onChange={(e) => setSelectedSpeaker(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedSpeaker(e.target.value);
+                                onSpeakerChange?.(e.target.value);
+                            }}
                             className="settings-select"
                         >
                             {audioOutputs.map(device => (
@@ -407,7 +444,10 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose })
                         <h3>📹 Kamera</h3>
                         <select
                             value={selectedCamera}
-                            onChange={(e) => setSelectedCamera(e.target.value)}
+                            onChange={(e) => {
+                                setSelectedCamera(e.target.value);
+                                onCameraChange?.(e.target.value);
+                            }}
                             className="settings-select"
                         >
                             {videoInputs.map(device => (

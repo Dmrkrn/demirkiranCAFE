@@ -33,6 +33,8 @@ interface UseMediaDevicesReturn {
     toggleVideo: () => void;
     toggleAudio: () => void;
     getDevices: () => Promise<void>;
+    changeAudioInput: (deviceId: string) => Promise<void>;
+    changeVideoInput: (deviceId: string) => Promise<void>;
 }
 
 export function useMediaDevices(): UseMediaDevicesReturn {
@@ -55,10 +57,22 @@ export function useMediaDevices(): UseMediaDevicesReturn {
      */
     const getDevices = useCallback(async () => {
         try {
-            // Önce izin almak için geçici bir stream oluştur
+            // Önce izin almak için geçici bir stream oluştur (Ayrı ayrı dene)
             // (izin verilmeden cihaz isimleri gizli kalır)
-            const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
-            tempStream.getTracks().forEach(track => track.stop()); // Hemen kapat
+
+            try {
+                const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                audioStream.getTracks().forEach(track => track.stop());
+            } catch (e) {
+                console.warn('Mikrofon izni alınamadı (useMediaDevices):', e);
+            }
+
+            try {
+                const videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                videoStream.getTracks().forEach(track => track.stop());
+            } catch (e) {
+                console.warn('Kamera izni alınamadı (useMediaDevices):', e);
+            }
 
             // Şimdi cihazları listele
             const deviceList = await navigator.mediaDevices.enumerateDevices();
@@ -221,5 +235,27 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         toggleVideo,
         toggleAudio,
         getDevices,
+        changeAudioInput: async (deviceId: string) => {
+            if (!localStream) return;
+            // Stop current audio track
+            localStream.getAudioTracks().forEach(t => t.stop());
+
+            // Start new with specific device
+            await startMedia({
+                audio: { deviceId: { exact: deviceId } },
+                video: videoEnabled // Keep video state
+            });
+        },
+        changeVideoInput: async (deviceId: string) => {
+            if (!localStream) return;
+            // Stop current video track
+            localStream.getVideoTracks().forEach(t => t.stop());
+
+            // Start new with specific device
+            await startMedia({
+                audio: audioEnabled, // Keep audio state
+                video: { deviceId: { exact: deviceId } }
+            });
+        }
     };
 }

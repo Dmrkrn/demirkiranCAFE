@@ -51,7 +51,7 @@ export function useSocket(): UseSocketReturn {
     const [clientId, setClientId] = useState<string | null>(null);
 
     // Peer listesi
-    const [peers, setPeers] = useState<Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean }>>([]);
+    const [peers, setPeers] = useState<Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean; roomId?: string }>>([]);
 
     /**
      * Peer durumunu güncelle (App.tsx'ten çağrılacak)

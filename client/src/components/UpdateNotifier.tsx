@@ -4,15 +4,17 @@ import './UpdateNotifier.css';
 const UpdateNotifier: React.FC = () => {
     const [updateStatus, setUpdateStatus] = useState<'idle' | 'available' | 'downloading' | 'downloaded'>('idle');
     const [progress, setProgress] = useState(0);
+    const [version, setVersion] = useState<string>('');
 
     useEffect(() => {
         // Electron ortamında değilsek başlama
         if (!window.electronAPI) return;
 
         // Güncelleme bulundu
-        window.electronAPI.onUpdateAvailable(() => {
+        window.electronAPI.onUpdateAvailable((info: any) => {
             setUpdateStatus('available');
-            console.log('📢 Güncelleme bulundu!');
+            setVersion(info.version);
+            console.log('📢 Güncelleme bulundu:', info.version);
         });
 
         // İndirme ilerlemesi
@@ -25,6 +27,11 @@ const UpdateNotifier: React.FC = () => {
         window.electronAPI.onUpdateDownloaded(() => {
             setUpdateStatus('downloaded');
             console.log('✅ Güncelleme indirildi!');
+
+            // 3 saniye sonra otomatik başlat
+            setTimeout(() => {
+                handleInstall();
+            }, 3000);
         });
 
         return () => {
@@ -49,13 +56,13 @@ const UpdateNotifier: React.FC = () => {
                 <div className="update-content">
                     <div className="update-text">
                         <span>✨</span>
-                        {updateStatus === 'available' && 'Yeni bir uygulama güncellemesi bulundu!'}
-                        {updateStatus === 'downloading' && 'Güncelleme indiriliyor...'}
-                        {updateStatus === 'downloaded' && 'Güncelleme hazır!'}
+                        {updateStatus === 'available' && `Yeni güncelleme bulundu: v${version}`}
+                        {updateStatus === 'downloading' && `Güncelleniyor... %${Math.round(progress)}`}
+                        {updateStatus === 'downloaded' && `Güncelleme tamamlandı! Yeniden başlatılıyor...`}
                     </div>
                     {updateStatus === 'downloaded' && (
-                        <button className="update-button" onClick={handleInstall}>
-                            Yeniden Başlat ve Güncelle
+                        <button className="update-button" disabled>
+                            Yeniden Başlatılıyor...
                         </button>
                     )}
                 </div>

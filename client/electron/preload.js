@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
      */
     getSettings: () => ipcRenderer.invoke('get-settings'),
     saveSettings: (settings) => ipcRenderer.send('save-settings', settings),
+    getAppVersion: () => ipcRenderer.invoke('get-app-version'),
 });
 
 // Window nesnesine eklediğimizi TypeScript'e bildirmek için

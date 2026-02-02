@@ -316,7 +316,7 @@
 .video-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: var(--spacing-md);
     padding: var(--spacing-md);
     overflow-y: auto;
@@ -364,7 +364,9 @@
     padding: var(--spacing-xs) 0;
     overflow-x: auto;
     flex-shrink: 0;
-    justify-content: center;
+    justify-content: flex-start;
+    padding-left: var(--spacing-md);
+    padding-right: var(--spacing-md);
     scrollbar-width: none;
     height: 120px;
 }

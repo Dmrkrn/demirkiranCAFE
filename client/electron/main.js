@@ -318,3 +318,8 @@ ipcMain.on('save-settings', (event, newSettings) => {
         log.error('Ayarlar kaydedilemedi:', err);
     }
 });
+
+// IPC: App Version
+ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
+});

@@ -44,6 +44,8 @@ function App() {
 
     // Kullanıcı Ses Seviyeleri (0-100)
     const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
+    // Aktif Hoparlör ID
+    const [activeSpeakerId, setActiveSpeakerId] = useState<string>('');
 
     // Oda Değiştirme Fonksiyonu
     const handleSwitchRoom = async (targetRoom: 'main' | 'dev') => {
@@ -72,6 +74,8 @@ function App() {
     // Video elementleri için ref
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const screenVideoRef = useRef<HTMLVideoElement>(null);
+    // Chat auto-scroll için ref
+    const chatEndRef = useRef<HTMLDivElement>(null);
 
     // Custom Hooks
     const { isConnected, clientId, request, emit, onChatMessage, peers, fetchPeers, socket, sendStatusUpdate } = useSocket();
@@ -82,7 +86,9 @@ function App() {
         startMedia,
         stopMedia,
         toggleVideo,
-        toggleAudio
+        toggleAudio,
+        changeAudioInput,
+        changeVideoInput
     } = useMediaDevices();
 
     const {
@@ -321,6 +327,11 @@ function App() {
         });
         return cleanup;
     }, [onChatMessage, isJoined]);
+
+    // Mesajlar değiştiğinde otomatik en alta kaydır
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [chatMessages]);
 
     /**
      * Mesaj gönder
@@ -948,6 +959,7 @@ function App() {
                                                     );
                                                 })
                                             )}
+                                            <div ref={chatEndRef} />
                                         </div>
                                         <form className="chat-input-integrated" onSubmit={(e) => {
                                             e.preventDefault();
@@ -1008,6 +1020,7 @@ function App() {
                                         stream={consumer.stream}
                                         muted={isDeafened}
                                         volume={userVolumes[consumer.peerId] ?? 100}
+                                        speakerId={activeSpeakerId}
                                     />
                                 ))}
                             </div>
@@ -1015,6 +1028,13 @@ function App() {
                     </main>
                 </div>
             </div>
+            <SettingsPanel
+                isOpen={showSettings}
+                onClose={() => setShowSettings(false)}
+                onMicChange={changeAudioInput}
+                onSpeakerChange={setActiveSpeakerId}
+                onCameraChange={changeVideoInput}
+            />
         </div>
     );
 }
@@ -1070,8 +1090,21 @@ function VideoPlayer({ stream }: { stream: MediaStream }) {
 /**
  * Audio Player Bileşeni
  */
-function AudioPlayer({ stream, muted, volume = 100 }: { stream: MediaStream; muted: boolean, volume?: number }) {
+/**
+ * Audio Player Bileşeni
+ */
+function AudioPlayer({ stream, muted, volume = 100, speakerId }: { stream: MediaStream; muted: boolean, volume?: number, speakerId?: string }) {
     const audioRef = useRef<HTMLAudioElement>(null);
+
+    // Hoparlör değişimi (Sink ID)
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (audio && speakerId && (audio as any).setSinkId) {
+            (audio as any).setSinkId(speakerId)
+                .then(() => console.log('🔊 Hoparlör değiştirildi:', speakerId))
+                .catch((e: any) => console.error('❌ Hoparlör değiştirilemedi:', e));
+        }
+    }, [speakerId]);
 
     useEffect(() => {
         const audio = audioRef.current;

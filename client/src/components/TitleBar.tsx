@@ -1,7 +1,14 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import './TitleBar.css';
 
 export const TitleBar: React.FC = () => {
+    const [version, setVersion] = useState<string>('');
+
+    useEffect(() => {
+        if (window.electronAPI) {
+            window.electronAPI.getAppVersion().then(setVersion);
+        }
+    }, []);
     // Electron ortamında değilsek render etme (Browser fallback)
     if (!window.electronAPI) return null;
 
@@ -12,7 +19,10 @@ export const TitleBar: React.FC = () => {
     return (
         <header className="title-bar">
             <div className="title-bar-drag-region">
-                <div className="app-title">DemirkıranCAFE</div>
+                <div className="app-title">
+                    DemirkıranCAFE
+                    {version && <span style={{ fontSize: '0.7em', opacity: 0.6, marginLeft: '8px' }}>v{version}</span>}
+                </div>
             </div>
             <div className="window-controls">
                 <button className="control-btn minimize-btn" onClick={handleMinimize} title="Küçült">
