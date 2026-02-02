@@ -286,12 +286,19 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
         }
     }, [isOpen, selectedMic, selectedSpeaker, selectedCamera]);
 
-    // Loopback için Hoparlör Seçimi
+    // Loopback için Hoparlör Seçimi ve srcObject ataması
     useEffect(() => {
-        if (isLoopbackEnabled && loopbackAudioRef.current && selectedSpeaker) {
-            const audio = loopbackAudioRef.current as any;
-            if (audio.setSinkId) {
-                audio.setSinkId(selectedSpeaker)
+        if (isLoopbackEnabled && loopbackAudioRef.current) {
+            const audio = loopbackAudioRef.current;
+
+            // Stream ata
+            if (testStream && audio.srcObject !== testStream) {
+                audio.srcObject = testStream;
+            }
+
+            // Hoparlör seçimi
+            if (selectedSpeaker && (audio as any).setSinkId) {
+                (audio as any).setSinkId(selectedSpeaker)
                     .then(() => console.log('🔊 Loopback hoparlörü ayarlandı:', selectedSpeaker))
                     .catch((e: any) => console.error('❌ Loopback hoparlörü ayarlanamadı:', e));
             }
@@ -386,9 +393,6 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
                                     autoPlay
                                     playsInline
                                     style={{ display: 'none' }}
-                                    onMount={(el: HTMLAudioElement) => {
-                                        if (el) el.srcObject = testStream;
-                                    }}
                                 />
                             )}
                         </div>
