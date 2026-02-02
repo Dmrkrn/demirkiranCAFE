@@ -15,13 +15,13 @@ interface MediaDeviceInfo {
     kind: string;
 }
 
-interface Keybinds {
+export interface Keybinds {
     toggleMic: string;
     toggleSpeaker: string;
 }
 
 // localStorage'dan keybind'leri yükle
-const loadKeybinds = (): Keybinds => {
+export const loadKeybinds = (): Keybinds => {
     try {
         const saved = localStorage.getItem('demirkiran-keybinds');
         if (saved) {
@@ -284,256 +284,256 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
         if (isOpen) {
             loadDevices();
         }
-        // Loopback için Hoparlör Seçimi
-        useEffect(() => {
-            if (isLoopbackEnabled && loopbackAudioRef.current && selectedSpeaker) {
-                const audio = loopbackAudioRef.current as any;
-                if (audio.setSinkId) {
-                    audio.setSinkId(selectedSpeaker)
-                        .then(() => console.log('🔊 Loopback hoparlörü ayarlandı:', selectedSpeaker))
-                        .catch((e: any) => console.error('❌ Loopback hoparlörü ayarlanamadı:', e));
-                }
+    }, [isOpen, selectedMic, selectedSpeaker, selectedCamera]);
+
+    // Loopback için Hoparlör Seçimi
+    useEffect(() => {
+        if (isLoopbackEnabled && loopbackAudioRef.current && selectedSpeaker) {
+            const audio = loopbackAudioRef.current as any;
+            if (audio.setSinkId) {
+                audio.setSinkId(selectedSpeaker)
+                    .then(() => console.log('🔊 Loopback hoparlörü ayarlandı:', selectedSpeaker))
+                    .catch((e: any) => console.error('❌ Loopback hoparlörü ayarlanamadı:', e));
             }
-        }, [isLoopbackEnabled, selectedSpeaker, testStream]);
+        }
+    }, [isLoopbackEnabled, selectedSpeaker, testStream]);
 
-        if (!isOpen) return null;
+    if (!isOpen) return null;
 
-        return (
-            <div className="settings-overlay" onClick={onClose}>
-                <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
-                    <div className="settings-header">
-                        <h2>Ayarlar</h2>
-                        <button className="close-btn" onClick={onClose}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
-                            </svg>
-                        </button>
-                    </div>
+    return (
+        <div className="settings-overlay" onClick={onClose}>
+            <div className="settings-panel" onClick={(e) => e.stopPropagation()}>
+                <div className="settings-header">
+                    <h2>Ayarlar</h2>
+                    <button className="close-btn" onClick={onClose}>
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                        </svg>
+                    </button>
+                </div>
 
-                    <div className="settings-content">
-                        {/* Ses Girişi */}
-                        <div className="settings-section">
-                            <h3>🎤 Mikrofon</h3>
-                            <select
-                                value={selectedMic}
-                                onChange={(e) => {
-                                    setSelectedMic(e.target.value);
-                                    onMicChange?.(e.target.value);
-                                }}
-                                className="settings-select"
-                            >
-                                {audioInputs.map(device => (
-                                    <option key={device.deviceId} value={device.deviceId}>
-                                        {device.label}
-                                    </option>
-                                ))}
-                            </select>
+                <div className="settings-content">
+                    {/* Ses Girişi */}
+                    <div className="settings-section">
+                        <h3>🎤 Mikrofon</h3>
+                        <select
+                            value={selectedMic}
+                            onChange={(e) => {
+                                setSelectedMic(e.target.value);
+                                onMicChange?.(e.target.value);
+                            }}
+                            className="settings-select"
+                        >
+                            {audioInputs.map(device => (
+                                <option key={device.deviceId} value={device.deviceId}>
+                                    {device.label}
+                                </option>
+                            ))}
+                        </select>
 
-                            {/* Mic Test Visualizer */}
-                            <div className="mic-test-area" style={{ margin: '15px 0', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
-                                    <span style={{ fontSize: '0.9rem' }}>Mikrofon Testi</span>
-                                    <span style={{ fontSize: '0.8rem', color: isTestSpeaking ? '#4ade80' : '#888' }}>
-                                        {isTestSpeaking ? 'Algılanıyor' : 'Sessiz'}
-                                    </span>
-                                </div>
-                                {/* Simple Visualizer Bar */}
-                                <div style={{ height: '10px', width: '100%', background: '#333', borderRadius: '5px', overflow: 'hidden', position: 'relative' }}>
-                                    <div
-                                        style={{
-                                            width: `${testVolume}%`,
-                                            height: '100%',
-                                            background: isTestSpeaking ? '#4ade80' : '#fbbf24',
-                                            transition: 'width 0.1s ease',
-                                        }}
-                                    />
-                                    {/* Threshold Indicator */}
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            left: `${micThreshold}%`,
-                                            top: 0,
-                                            bottom: 0,
-                                            width: '2px',
-                                            background: 'red',
-                                            zIndex: 10
-                                        }}
-                                        title="Eşik Değeri"
-                                    />
-                                </div>
-
-                                <button
-                                    onClick={() => setIsLoopbackEnabled(!isLoopbackEnabled)}
+                        {/* Mic Test Visualizer */}
+                        <div className="mic-test-area" style={{ margin: '15px 0', padding: '10px', background: 'rgba(0,0,0,0.2)', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '5px' }}>
+                                <span style={{ fontSize: '0.9rem' }}>Mikrofon Testi</span>
+                                <span style={{ fontSize: '0.8rem', color: isTestSpeaking ? '#4ade80' : '#888' }}>
+                                    {isTestSpeaking ? 'Algılanıyor' : 'Sessiz'}
+                                </span>
+                            </div>
+                            {/* Simple Visualizer Bar */}
+                            <div style={{ height: '10px', width: '100%', background: '#333', borderRadius: '5px', overflow: 'hidden', position: 'relative' }}>
+                                <div
                                     style={{
-                                        marginTop: '10px',
-                                        padding: '8px 12px',
-                                        fontSize: '0.8rem',
-                                        background: isLoopbackEnabled ? '#dc2626' : '#2563eb',
-                                        color: 'white',
-                                        border: 'none',
-                                        borderRadius: '4px',
-                                        cursor: 'pointer'
+                                        width: `${testVolume}%`,
+                                        height: '100%',
+                                        background: isTestSpeaking ? '#4ade80' : '#fbbf24',
+                                        transition: 'width 0.1s ease',
                                     }}
-                                >
-                                    {isLoopbackEnabled ? 'Testi Durdur' : 'Sesimi Duy (Loopback Test)'}
-                                </button>
-                                {/* Loopback Audio Element */}
-                                {testStream && isLoopbackEnabled && (
-                                    <audio
-                                        ref={loopbackAudioRef}
-                                        autoPlay
-                                        playsInline
-                                        style={{ display: 'none' }}
-                                        onMount={(el: HTMLAudioElement) => {
-                                            if (el) el.srcObject = testStream;
-                                        }}
-                                    />
-                                )}
-                            </div>
-
-                            <div className="volume-control">
-                                <span>Giriş Ses Seviyesi</span>
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    value={micVolume}
-                                    onChange={(e) => setMicVolume(Number(e.target.value))}
-                                    className="volume-slider"
                                 />
-                                <span className="volume-value">{micVolume}%</span>
-                            </div>
-                            <div className="volume-control">
-                                <span title="Bu seviyenin altındaki sesler iletilmez">Mikrofon Eşik Değeri (VAD)</span>
-                                <input
-                                    type="range"
-                                    min="1"
-                                    max="100"
-                                    value={micThreshold}
-                                    onChange={(e) => {
-                                        const val = Number(e.target.value);
-                                        setMicThreshold(val);
-                                        localStorage.setItem('demirkiran-mic-threshold', String(val));
+                                {/* Threshold Indicator */}
+                                <div
+                                    style={{
+                                        position: 'absolute',
+                                        left: `${micThreshold}%`,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: '2px',
+                                        background: 'red',
+                                        zIndex: 10
                                     }}
-                                    className="volume-slider threshold-slider"
+                                    title="Eşik Değeri"
                                 />
-                                <span className="volume-value">{micThreshold}</span>
                             </div>
-                            <p className="settings-hint">Kırmızı çizgi eşik değeridir. Ses çubuğu bu çizgiyi geçtiğinde sesiniz karşıya gider.</p>
-                        </div>
 
-                        {/* Ses Çıkışı */}
-                        <div className="settings-section">
-                            <h3>🔊 Hoparlör</h3>
-                            <select
-                                value={selectedSpeaker}
-                                onChange={(e) => {
-                                    setSelectedSpeaker(e.target.value);
-                                    onSpeakerChange?.(e.target.value);
+                            <button
+                                onClick={() => setIsLoopbackEnabled(!isLoopbackEnabled)}
+                                style={{
+                                    marginTop: '10px',
+                                    padding: '8px 12px',
+                                    fontSize: '0.8rem',
+                                    background: isLoopbackEnabled ? '#dc2626' : '#2563eb',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer'
                                 }}
-                                className="settings-select"
                             >
-                                {audioOutputs.map(device => (
-                                    <option key={device.deviceId} value={device.deviceId}>
-                                        {device.label}
-                                    </option>
-                                ))}
-                            </select>
-                            <div className="volume-control">
-                                <span>Çıkış Ses Seviyesi</span>
-                                <input
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    value={speakerVolume}
-                                    onChange={(e) => setSpeakerVolume(Number(e.target.value))}
-                                    className="volume-slider"
+                                {isLoopbackEnabled ? 'Testi Durdur' : 'Sesimi Duy (Loopback Test)'}
+                            </button>
+                            {/* Loopback Audio Element */}
+                            {testStream && isLoopbackEnabled && (
+                                <audio
+                                    ref={loopbackAudioRef}
+                                    autoPlay
+                                    playsInline
+                                    style={{ display: 'none' }}
+                                    onMount={(el: HTMLAudioElement) => {
+                                        if (el) el.srcObject = testStream;
+                                    }}
                                 />
-                                <span className="volume-value">{speakerVolume}%</span>
-                            </div>
+                            )}
                         </div>
 
-                        {/* Kamera */}
-                        <div className="settings-section">
-                            <h3>📹 Kamera</h3>
-                            <select
-                                value={selectedCamera}
+                        <div className="volume-control">
+                            <span>Giriş Ses Seviyesi</span>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={micVolume}
+                                onChange={(e) => setMicVolume(Number(e.target.value))}
+                                className="volume-slider"
+                            />
+                            <span className="volume-value">{micVolume}%</span>
+                        </div>
+                        <div className="volume-control">
+                            <span title="Bu seviyenin altındaki sesler iletilmez">Mikrofon Eşik Değeri (VAD)</span>
+                            <input
+                                type="range"
+                                min="1"
+                                max="100"
+                                value={micThreshold}
                                 onChange={(e) => {
-                                    setSelectedCamera(e.target.value);
-                                    onCameraChange?.(e.target.value);
+                                    const val = Number(e.target.value);
+                                    setMicThreshold(val);
+                                    localStorage.setItem('demirkiran-mic-threshold', String(val));
                                 }}
-                                className="settings-select"
-                            >
-                                {videoInputs.map(device => (
-                                    <option key={device.deviceId} value={device.deviceId}>
-                                        {device.label}
-                                    </option>
-                                ))}
-                            </select>
+                                className="volume-slider threshold-slider"
+                            />
+                            <span className="volume-value">{micThreshold}</span>
                         </div>
+                        <p className="settings-hint">Kırmızı çizgi eşik değeridir. Ses çubuğu bu çizgiyi geçtiğinde sesiniz karşıya gider.</p>
+                    </div>
 
-                        {/* Kısayol Tuşları */}
-                        <div className="settings-section">
-                            <h3>⌨️ Kısayol Tuşları</h3>
-
-                            <div className="keybind-row">
-                                <span className="keybind-label">Mikrofonu Aç/Kapat</span>
-                                <button
-                                    className={`keybind-btn ${recordingKey === 'toggleMic' ? 'recording' : ''}`}
-                                    onClick={() => setRecordingKey('toggleMic')}
-                                >
-                                    {recordingKey === 'toggleMic'
-                                        ? 'Bir tuşa bas...'
-                                        : formatKeyCode(keybinds.toggleMic)}
-                                </button>
-                            </div>
-
-                            <div className="keybind-row">
-                                <span className="keybind-label">Sesi Kapat/Aç (Deaf)</span>
-                                <button
-                                    className={`keybind-btn ${recordingKey === 'toggleSpeaker' ? 'recording' : ''}`}
-                                    onClick={() => setRecordingKey('toggleSpeaker')}
-                                >
-                                    {recordingKey === 'toggleSpeaker'
-                                        ? 'Bir tuşa bas...'
-                                        : formatKeyCode(keybinds.toggleSpeaker)}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Gelişmiş Ayarlar */}
-                        <div className="settings-section">
-                            <h3>⚙️ Gelişmiş Ayarlar</h3>
-                            <div className="settings-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                                <div>
-                                    <div style={{ fontWeight: 600 }}>DRM Bypass Modu</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                        TOD, Netflix gibi platformlardaki siyah ekran sorununu aşmak için donanım hızlandırmayı kapatır. (Yeniden başlatma gerektirir)
-                                    </div>
-                                </div>
-                                <input
-                                    type="checkbox"
-                                    checked={drmBypass}
-                                    onChange={(e) => toggleDrmBypass(e.target.checked)}
-                                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="settings-footer-info" style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem', opacity: 0.5 }}>
-                            DemirkıranCAFE v1.0.6 • Made with ❤️
+                    {/* Ses Çıkışı */}
+                    <div className="settings-section">
+                        <h3>🔊 Hoparlör</h3>
+                        <select
+                            value={selectedSpeaker}
+                            onChange={(e) => {
+                                setSelectedSpeaker(e.target.value);
+                                onSpeakerChange?.(e.target.value);
+                            }}
+                            className="settings-select"
+                        >
+                            {audioOutputs.map(device => (
+                                <option key={device.deviceId} value={device.deviceId}>
+                                    {device.label}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="volume-control">
+                            <span>Çıkış Ses Seviyesi</span>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value={speakerVolume}
+                                onChange={(e) => setSpeakerVolume(Number(e.target.value))}
+                                className="volume-slider"
+                            />
+                            <span className="volume-value">{speakerVolume}%</span>
                         </div>
                     </div>
 
-                    <div className="settings-footer">
-                        <button className="save-btn" onClick={onClose}>
-                            Kaydet ve Kapat
-                        </button>
+                    {/* Kamera */}
+                    <div className="settings-section">
+                        <h3>📹 Kamera</h3>
+                        <select
+                            value={selectedCamera}
+                            onChange={(e) => {
+                                setSelectedCamera(e.target.value);
+                                onCameraChange?.(e.target.value);
+                            }}
+                            className="settings-select"
+                        >
+                            {videoInputs.map(device => (
+                                <option key={device.deviceId} value={device.deviceId}>
+                                    {device.label}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+
+                    {/* Kısayol Tuşları */}
+                    <div className="settings-section">
+                        <h3>⌨️ Kısayol Tuşları</h3>
+
+                        <div className="keybind-row">
+                            <span className="keybind-label">Mikrofonu Aç/Kapat</span>
+                            <button
+                                className={`keybind-btn ${recordingKey === 'toggleMic' ? 'recording' : ''}`}
+                                onClick={() => setRecordingKey('toggleMic')}
+                            >
+                                {recordingKey === 'toggleMic'
+                                    ? 'Bir tuşa bas...'
+                                    : formatKeyCode(keybinds.toggleMic)}
+                            </button>
+                        </div>
+
+                        <div className="keybind-row">
+                            <span className="keybind-label">Sesi Kapat/Aç (Deaf)</span>
+                            <button
+                                className={`keybind-btn ${recordingKey === 'toggleSpeaker' ? 'recording' : ''}`}
+                                onClick={() => setRecordingKey('toggleSpeaker')}
+                            >
+                                {recordingKey === 'toggleSpeaker'
+                                    ? 'Bir tuşa bas...'
+                                    : formatKeyCode(keybinds.toggleSpeaker)}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Gelişmiş Ayarlar */}
+                    <div className="settings-section">
+                        <h3>⚙️ Gelişmiş Ayarlar</h3>
+                        <div className="settings-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <div>
+                                <div style={{ fontWeight: 600 }}>DRM Bypass Modu</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                    TOD, Netflix gibi platformlardaki siyah ekran sorununu aşmak için donanım hızlandırmayı kapatır. (Yeniden başlatma gerektirir)
+                                </div>
+                            </div>
+                            <input
+                                type="checkbox"
+                                checked={drmBypass}
+                                onChange={(e) => toggleDrmBypass(e.target.checked)}
+                                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                            />
+                        </div>
+                    </div>
+
+                    <div className="settings-footer-info" style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem', opacity: 0.5 }}>
+                        DemirkıranCAFE v1.0.6 • Made with ❤️
                     </div>
                 </div>
-            </div>
-        );
-    };
 
-    // Export keybinds loader for use in App
-    export { loadKeybinds, type Keybinds };
+                <div className="settings-footer">
+                    <button className="save-btn" onClick={onClose}>
+                        Kaydet ve Kapat
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
