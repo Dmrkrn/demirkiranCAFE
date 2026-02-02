@@ -201,8 +201,9 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
                 clientInfo.producers.push(producer.id);
             }
 
-            // Diğer client'lara yeni producer'ı bildir
-            client.broadcast.emit('new-producer', {
+            // Diğer client'lara yeni producer'ı bildir (SADECE AYNI ODADAKİLERE)
+            const roomId = (clientInfo as any).roomId || 'main';
+            client.to(roomId).emit('new-producer', {
                 producerId: producer.id,
                 peerId: client.id,
                 kind: data.kind,
@@ -282,8 +283,23 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         // Kendi producer'larını hariç tut
         const clientInfo = this.clients.get(client.id);
         const ownProducerIds = clientInfo?.producers ?? [];
+        const clientRoomId = (clientInfo as any).roomId || 'main';
 
-        const otherProducers = producers.filter(p => !ownProducerIds.includes(p.id));
+        // Sadece aynı odadaki producer'ları filtrele
+        const otherProducers = producers.filter(p => {
+            if (ownProducerIds.includes(p.id)) return false;
+
+            // Producer sahibini bul
+            const producerOwnerEntry = Array.from(this.clients.entries())
+                .find(([_, info]) => info.producers.includes(p.id));
+
+            if (!producerOwnerEntry) return false;
+
+            const ownerInfo = producerOwnerEntry[1];
+            const ownerRoomId = (ownerInfo as any).roomId || 'main';
+
+            return ownerRoomId === clientRoomId;
+        });
 
         return { producers: otherProducers };
     }
@@ -312,33 +328,52 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('setUsername')
     handleSetUsername(
         @ConnectedSocket() client: Socket,
-        @MessageBody() data: { username: string; password?: string },
+        @MessageBody() data: { username: string; password?: string; roomId?: string },
     ) {
-        // Şifre kontrolü
-        const envPassword = this.configService.get<string>('ROOM_PASSWORD', 'fallbackPassword');
-        if (data.password !== envPassword) {
-            this.logger.warn(`🚫 Yanlış şifre denemesi: ${client.id}`);
+        const roomId = data.roomId || 'main'; // Varsayılan: Ana Oda
+        let requiredPassword = '';
+
+        if (roomId === 'dev') {
+            requiredPassword = this.configService.get<string>('DEV_ROOM_PASSWORD', 'dev123');
+        } else {
+            requiredPassword = this.configService.get<string>('ROOM_PASSWORD', 'fallbackPassword');
+        }
+
+        // Şifre kontrolü (Trim uygula)
+        const cleanInput = (data.password || '').trim();
+        const cleanRequired = (requiredPassword || '').trim();
+
+        if (cleanInput !== cleanRequired) {
+            this.logger.warn(`🚫 Yanlış şifre denemesi (${roomId}): ${client.id}. Beklenen: '${cleanRequired}', Gelen: '${cleanInput}'`);
             return { success: false, error: 'Yanlış şifre!' };
         }
 
         const clientInfo = this.clients.get(client.id);
         if (clientInfo) {
+            (clientInfo as any).roomId = roomId; // Type hack, better to update interface
             clientInfo.username = data.username;
-            this.logger.log(`👤 Kullanıcı adı ayarlandı: ${client.id} -> ${data.username}`);
 
-            // Diğer client'lara haber ver
+            // Socket.io odasına katıl
+            // Önceki odalardan çık
+            client.rooms.forEach(r => {
+                if (r !== client.id) client.leave(r);
+            });
+            client.join(roomId);
+
+            this.logger.log(`👤 Kullanıcı katıldı: ${client.id} -> ${data.username} @ ${roomId}`);
+
+            // Diğer client'lara haber ver (Global duyuru - herkes görsün)
             client.broadcast.emit('peer-joined', {
                 peerId: client.id,
                 username: data.username,
+                roomId: roomId // Frontend bunu kullanıp gruplayabilir
             });
         }
         return { success: true };
     }
 
     /**
-     * Sohbet Mesajı Gönder
-     * --------------------
-     * Client bir mesaj gönderir, sunucu tüm client'lara dağıtır.
+     * Sohbet Mesajı Gönder (Odaya Özel)
      */
     @SubscribeMessage('chat-message')
     handleChatMessage(
@@ -347,11 +382,12 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     ) {
         const clientInfo = this.clients.get(client.id);
         const username = clientInfo?.username || 'Anonim';
+        const roomId = (clientInfo as any).roomId || 'main';
 
-        this.logger.log(`💬 Mesaj: ${username}: ${data.message}`);
+        this.logger.log(`💬 Mesaj (${roomId}): ${username}: ${data.message}`);
 
-        // Tüm client'lara mesajı gönder (gönderen dahil)
-        this.server.emit('chat-message', {
+        // Sadece o odadakilere gönder
+        this.server.to(roomId).emit('chat-message', {
             id: `${client.id}-${Date.now()}`,
             senderId: client.id,
             senderName: username,
@@ -363,10 +399,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
 
     /**
-     * Kullanıcı Durumunu Güncelle (Mic/Deafen)
-     * ----------------------------------------
-     * Client kendi durumunu (mic muted, deadened) güncellediğinde
-     * diğer kullanıcılara bildir.
+     * Kullanıcı Durumunu Güncelle (Global Görünürlük)
      */
     @SubscribeMessage('updatePeerStatus')
     handleUpdatePeerStatus(
@@ -375,14 +408,8 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     ) {
         const clientInfo = this.clients.get(client.id);
         if (clientInfo) {
-            // Durumları güncelle (Merge et)
-            // Not: Typescript tanımına bu alanları eklemedik ama JS objesi olduğu için tutabiliriz.
-            // İdealde interface'i güncellemek lazım ama runtime'da çalışır.
             Object.assign(clientInfo, data);
-
             this.logger.log(`🔄 Status update: ${client.id} -> ${JSON.stringify(data)}`);
-
-            // Diğer client'lara bildir
             client.broadcast.emit('peer-status-update', {
                 peerId: client.id,
                 status: data,
@@ -392,7 +419,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
 
     /**
-     * Mevcut kullanıcıları listele
+     * Mevcut kullanıcıları listele (Global)
      */
     @SubscribeMessage('getUsers')
     handleGetUsers(@ConnectedSocket() client: Socket) {
@@ -401,7 +428,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             .map(([id, info]) => ({
                 id,
                 username: info.username || 'Anonim',
-                // Mevcut durumları da gönder
+                roomId: (info as any).roomId || 'main',
                 isMicMuted: (info as any).isMicMuted,
                 isDeafened: (info as any).isDeafened,
             }));

@@ -210,6 +210,36 @@ export const mapDomCodeToUiohook = (code: string): number | null => {
         case 'Backspace': return UIOhookKey.VC_BACKSPACE;
         case 'Delete': return UIOhookKey.VC_DELETE;
 
+        // Navigation & Editing
+        case 'Insert': return UIOhookKey.VC_INSERT;
+        case 'Home': return UIOhookKey.VC_HOME;
+        case 'End': return UIOhookKey.VC_END;
+        case 'PageUp': return UIOhookKey.VC_PAGE_UP;
+        case 'PageDown': return UIOhookKey.VC_PAGE_DOWN;
+        case 'ScrollLock': return UIOhookKey.VC_SCROLL_LOCK;
+        case 'Pause': return 0xE046; // VC_PAUSE (Not standard in uiohook-napi enum sometimes, but trying safely)
+        case 'CapsLock': return UIOhookKey.VC_CAPS_LOCK;
+        case 'NumLock': return UIOhookKey.VC_NUM_LOCK;
+        case 'PrintScreen': return UIOhookKey.VC_PRINT_SCREEN;
+
+        // Numpad
+        case 'Numpad0': return UIOhookKey.VC_KP_0;
+        case 'Numpad1': return UIOhookKey.VC_KP_1;
+        case 'Numpad2': return UIOhookKey.VC_KP_2;
+        case 'Numpad3': return UIOhookKey.VC_KP_3;
+        case 'Numpad4': return UIOhookKey.VC_KP_4;
+        case 'Numpad5': return UIOhookKey.VC_KP_5;
+        case 'Numpad6': return UIOhookKey.VC_KP_6;
+        case 'Numpad7': return UIOhookKey.VC_KP_7;
+        case 'Numpad8': return UIOhookKey.VC_KP_8;
+        case 'Numpad9': return UIOhookKey.VC_KP_9;
+        case 'NumpadAdd': return UIOhookKey.VC_KP_ADD;
+        case 'NumpadSubtract': return UIOhookKey.VC_KP_SUBTRACT;
+        case 'NumpadMultiply': return UIOhookKey.VC_KP_MULTIPLY;
+        case 'NumpadDivide': return UIOhookKey.VC_KP_DIVIDE;
+        case 'NumpadDecimal': return UIOhookKey.VC_KP_SEPARATOR; // Or VC_KP_PERIOD? uIOhook usually maps separator
+        case 'NumpadEnter': return UIOhookKey.VC_KP_ENTER;
+
         default: return null;
     }
 };

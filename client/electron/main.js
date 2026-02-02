@@ -229,7 +229,7 @@ let globalKeybinds = {
 ipcMain.on('update-global-keybinds', (event, keybinds) => {
     // keybinds: { toggleMic: 50, toggleSpeaker: 32 } gibi
     globalKeybinds = keybinds;
-    log.info('Global keybinds updated:', globalKeybinds);
+    // log.info('Global keybinds updated:', globalKeybinds);
 });
 
 // Hook event listener

@@ -27,13 +27,12 @@ import './styles/App.css';
 function App() {
     const [username, setUsername] = useState('');
     const [roomPassword, setRoomPassword] = useState('');
-    const [isJoined, setIsJoined] = useState(false);
-    const [joiningStatus, setJoiningStatus] = useState<'idle' | 'connecting' | 'error'>('idle');
-    const [showScreenPicker, setShowScreenPicker] = useState(false);
-
-    // Chat state
+    const [selectedRoom, setSelectedRoom] = useState<'main' | 'dev'>('main'); // Oda seçimi
+    const [joiningStatus, setJoiningStatus] = useState<'idle' | 'connecting' | 'joined'>('idle');
+    const isJoined = joiningStatus === 'joined'; // Derived state for backward compatibility
     const [showSettings, setShowSettings] = useState(false);
-    const [isDeafened, setIsDeafened] = useState(false);
+    const [showScreenPicker, setShowScreenPicker] = useState(false);
+    const [isDeafened, setIsDeafened] = useState(false); // Restore isDeafened
     const [chatMessages, setChatMessages] = useState<Array<{
         id: string;
         senderId: string;
@@ -45,12 +44,36 @@ function App() {
     // Kullanıcı Ses Seviyeleri (0-100)
     const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
 
+    // Oda Değiştirme Fonksiyonu
+    const handleSwitchRoom = async (targetRoom: 'main' | 'dev') => {
+        // Zaten o odadaysak ve bağlıysak işlem yapma
+        if (targetRoom === selectedRoom && joiningStatus === 'joined') return;
+
+        console.log(`🔄 Odaya geçiş hazırlanıyor: ${targetRoom}`);
+
+        // 1. Hedef odayı seç
+        setSelectedRoom(targetRoom);
+
+        // 2. Mevcut bağlantıyı kopar ve Login ekranına dön
+        if (joiningStatus !== 'idle') {
+            closeAll();
+            stopMedia();
+            stopScreenShare();
+            setJoiningStatus('idle');
+        }
+
+        // 3. Şifre alanını temizle
+        setRoomPassword('');
+    };
+
+
+
     // Video elementleri için ref
     const localVideoRef = useRef<HTMLVideoElement>(null);
     const screenVideoRef = useRef<HTMLVideoElement>(null);
 
     // Custom Hooks
-    const { isConnected, clientId, request, emit, onChatMessage, peers, fetchPeers, socket } = useSocket();
+    const { isConnected, clientId, request, emit, onChatMessage, peers, fetchPeers, socket, sendStatusUpdate } = useSocket();
     const {
         localStream,
         videoEnabled,
@@ -121,9 +144,7 @@ function App() {
                 toggleAudio();
 
                 // Sunucuya bildir
-                if (socket) {
-                    socket.sendStatusUpdate({ isMicMuted: willBeMuted });
-                }
+                sendStatusUpdate({ isMicMuted: willBeMuted });
 
                 if (willBeMuted) {
                     playMuteSound();
@@ -132,7 +153,7 @@ function App() {
                 }
             }
         }
-    }, [localStream, toggleAudio, socket]);
+    }, [localStream, toggleAudio, sendStatusUpdate]);
 
     // Sesi kapat/aç - Deafen (sesli bildirimle)
     // Sesi kapat/aç - Deafen (sesli bildirimle)
@@ -141,13 +162,11 @@ function App() {
         setIsDeafened(newDeafened);
 
         // Sunucuya bildir
-        if (socket) {
-            socket.sendStatusUpdate({ isDeafened: newDeafened });
-        }
+        sendStatusUpdate({ isDeafened: newDeafened });
 
         if (newDeafened) playDeafenSound();
         else playUndeafenSound();
-    }, [isDeafened, socket]);
+    }, [isDeafened, sendStatusUpdate]);
 
     // 1. Keybind Konfigürasyonunu Main Process'e Gönder (Sadece ayarlar kapandığında veya mount olunca)
     useEffect(() => {
@@ -264,7 +283,10 @@ function App() {
     /**
      * Odaya Katıl
      */
-    const handleJoinRoom = async () => {
+    const handleJoinRoom = async (overrideRoomId?: string, overridePassword?: string) => {
+        const roomIdToJoin = overrideRoomId || selectedRoom;
+        const passwordToUse = overridePassword || roomPassword;
+
         if (!username.trim()) {
             alert('Lütfen bir kullanıcı adı girin!');
             return;
@@ -280,7 +302,11 @@ function App() {
 
             // Adım 0: Önce kimliğimizi sunucuya kaydettirelim!
             // Böylece sonraki işlemlerimizde adımız "Anonim" görünmez.
-            const userResponse = await request('setUsername', { username, password: roomPassword }) as { success: boolean; error?: string };
+            const userResponse = await request('setUsername', {
+                username,
+                password: passwordToUse,
+                roomId: roomIdToJoin
+            }) as { success: boolean; error?: string };
             if (!userResponse || !userResponse.success) {
                 throw new Error(userResponse?.error || 'Kullanıcı adı alınamadı');
             }
@@ -309,8 +335,7 @@ function App() {
             console.log('👀 Adım 5: Diğer kullanıcılar consume ediliyor...');
             await consumeAll();
 
-            setIsJoined(true);
-            setJoiningStatus('idle');
+            setJoiningStatus('joined');
             console.log('✅ Odaya başarıyla katıldın!');
 
             // Mevcut kullanıcıları getir
@@ -318,7 +343,7 @@ function App() {
 
         } catch (error) {
             console.error('❌ Odaya katılma hatası:', error);
-            setJoiningStatus('error');
+            setJoiningStatus('idle'); // Hata durumunda tekrar denemeye izin ver
             alert(`Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
         }
     };
@@ -330,7 +355,7 @@ function App() {
         closeAll();
         stopMedia();
         stopScreenShare();
-        setIsJoined(false);
+        setJoiningStatus('idle');
         console.log('👋 Odadan ayrıldın');
     };
 
@@ -430,6 +455,8 @@ function App() {
             {/* Settings Panel */}
             <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
 
+
+
             {/* Sol Sidebar */}
             <div className="app-content-wrapper">
                 <aside className="sidebar">
@@ -439,7 +466,9 @@ function App() {
                     </div>
 
                     <div className="room-info">
-                        <div className="room-name">Ana Oda</div>
+                        <div className="room-name">
+                            {selectedRoom === 'main' ? 'Ana Oda' : 'Geliştirme Odası'}
+                        </div>
                         <div className="room-status">
                             {isConnected ? (
                                 <span className="status-connected">● Sunucuya Bağlı</span>
@@ -450,50 +479,107 @@ function App() {
                         {clientId && (
                             <div className="client-id">ID: {clientId.slice(0, 8)}...</div>
                         )}
+
+                        <div className="room-selector" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                            <button
+                                className={`room-btn ${selectedRoom === 'main' ? 'active' : ''}`}
+                                onClick={() => handleSwitchRoom('main')}
+                                style={{ padding: '5px', fontSize: '0.8rem', cursor: 'pointer', background: selectedRoom === 'main' ? '#2563eb' : '#333', color: 'white', border: 'none', borderRadius: '4px' }}
+                            >
+                                🏠 Ana Oda
+                            </button>
+                            <button
+                                className={`room-btn ${selectedRoom === 'dev' ? 'active' : ''}`}
+                                onClick={() => handleSwitchRoom('dev')}
+                                style={{ padding: '5px', fontSize: '0.8rem', cursor: 'pointer', background: selectedRoom === 'dev' ? '#2563eb' : '#333', color: 'white', border: 'none', borderRadius: '4px' }}
+                            >
+                                🛠️ Geliştirme Odası
+                            </button>
+                        </div>
                     </div>
 
                     <div className="users-section">
                         <h3>Kullanıcılar</h3>
-                        {isJoined && (
-                            <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
-                                <Avatar name={username} size="sm" isSpeaking={isSpeaking} />
-                                <span className="user-name">{username} (Sen)</span>
-                                <div className="user-status-icons">
-                                    <button
-                                        className={`status-btn ${!audioEnabled ? 'muted' : ''}`}
-                                        onClick={handleToggleMic}
-                                        title={audioEnabled ? 'Mikrofonu Kapat (M)' : 'Mikrofonu Aç (M)'}
-                                    >
-                                        {audioEnabled ? (
-                                            <MicIcon />
-                                        ) : (
-                                            <MicOffIcon />
+                        <div className="room-group">
+                            <h4 style={{ fontSize: '0.8rem', color: '#888', marginBottom: '5px', textTransform: 'uppercase' }}>🏠 Ana Oda</h4>
+                            {isJoined && selectedRoom === 'main' && (
+                                <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
+                                    <Avatar name={username} size="sm" isSpeaking={isSpeaking} />
+                                    <span className="user-name">{username} (Sen)</span>
+                                    <div className="user-status-icons">
+                                        <button
+                                            className={`status-btn ${!audioEnabled ? 'muted' : ''}`}
+                                            onClick={handleToggleMic}
+                                            title={audioEnabled ? 'Mikrofonu Kapat (M)' : 'Mikrofonu Aç (M)'}
+                                        >
+                                            {audioEnabled ? <MicIcon /> : <MicOffIcon />}
+                                        </button>
+                                        <button
+                                            className={`status-btn ${isDeafened ? 'muted' : ''}`}
+                                            onClick={handleToggleDeafen}
+                                            title={isDeafened ? 'Sesi Aç (D)' : 'Sesi Kapat (D)'}
+                                        >
+                                            {isDeafened ? <HeadphonesOffIcon /> : <HeadphonessIcon />}
+                                        </button>
+                                        {isSharing && (
+                                            <span className="status-icon" title="Ekran Paylaşıyor">
+                                                🖥️
+                                            </span>
                                         )}
-                                    </button>
-                                    <button
-                                        className={`status-btn ${isDeafened ? 'muted' : ''}`}
-                                        onClick={handleToggleDeafen}
-                                        title={isDeafened ? 'Sesi Aç (D)' : 'Sesi Kapat (D)'}
-                                    >
-                                        {isDeafened ? <HeadphonesOffIcon /> : <HeadphonessIcon />}
-                                    </button>
-                                    {isSharing && (
-                                        <span className="status-icon" title="Ekran Paylaşıyor">
-                                            🖥️
-                                        </span>
-                                    )}
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                        {peers.map((peer) => (
-                            <SidebarPeer
-                                key={peer.id}
-                                peer={peer}
-                                consumers={consumers}
-                                volume={userVolumes[peer.id] ?? 100}
-                                onVolumeChange={handleVolumeChange}
-                            />
-                        ))}
+                            )}
+                            {peers.filter(p => !p.roomId || p.roomId === 'main').map((peer) => (
+                                <SidebarPeer
+                                    key={peer.id}
+                                    peer={peer}
+                                    consumers={consumers}
+                                    volume={userVolumes[peer.id] ?? 100}
+                                    onVolumeChange={handleVolumeChange}
+                                />
+                            ))}
+                        </div>
+
+                        <div className="room-group" style={{ marginTop: '15px' }}>
+                            <h4 style={{ fontSize: '0.8rem', color: '#888', marginBottom: '5px', textTransform: 'uppercase' }}>🛠️ Geliştirme Odası</h4>
+                            {isJoined && selectedRoom === 'dev' && (
+                                <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
+                                    <Avatar name={username} size="sm" isSpeaking={isSpeaking} />
+                                    <span className="user-name">{username} (Sen)</span>
+                                    <div className="user-status-icons">
+                                        <button
+                                            className={`status-btn ${!audioEnabled ? 'muted' : ''}`}
+                                            onClick={handleToggleMic}
+                                            title={audioEnabled ? 'Mikrofonu Kapat (M)' : 'Mikrofonu Aç (M)'}
+                                        >
+                                            {audioEnabled ? <MicIcon /> : <MicOffIcon />}
+                                        </button>
+                                        <button
+                                            className={`status-btn ${isDeafened ? 'muted' : ''}`}
+                                            onClick={handleToggleDeafen}
+                                            title={isDeafened ? 'Sesi Aç (D)' : 'Sesi Kapat (D)'}
+                                        >
+                                            {isDeafened ? <HeadphonesOffIcon /> : <HeadphonessIcon />}
+                                        </button>
+                                        {isSharing && (
+                                            <span className="status-icon" title="Ekran Paylaşıyor">
+                                                🖥️
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            {peers.filter(p => p.roomId === 'dev').map((peer) => (
+                                <SidebarPeer
+                                    key={peer.id}
+                                    peer={peer}
+                                    consumers={consumers}
+                                    volume={userVolumes[peer.id] ?? 100}
+                                    onVolumeChange={handleVolumeChange}
+                                />
+                            ))}
+                        </div>
+
                     </div>
 
                     <div className="sidebar-footer">
@@ -511,7 +597,7 @@ function App() {
                     {!isJoined ? (
                         <div className="connect-screen">
                             <div className="connect-card">
-                                <h1>Hoş Geldin!</h1>
+                                <h1>{selectedRoom === 'main' ? 'Ana Oda' : 'Geliştirme Odası'}'na Hoş Geldin!</h1>
                                 <p>Odaya katılmak için bilgilerini gir</p>
 
                                 <input
@@ -602,30 +688,49 @@ function App() {
                                         )}
 
                                         {/* Diğer kullanıcıların video'ları */}
-                                        {consumers
-                                            .filter(c => c.kind === 'video')
-                                            .map((consumer) => {
-                                                const peerName = peers.find(p => p.id === consumer.peerId)?.username || 'Kullanıcı';
-                                                return (
-                                                    <div
-                                                        key={consumer.id}
-                                                        className={`video-container ${consumer.kind === 'video' ? 'remote-video' : ''}`}
-                                                        onClick={(e) => {
-                                                            const target = e.currentTarget;
-                                                            if (document.fullscreenElement) {
-                                                                document.exitFullscreen();
-                                                            } else {
-                                                                target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
-                                                            }
-                                                        }}
-                                                        title="Tam ekran için tıkla"
-                                                        style={{ cursor: 'pointer' }}
-                                                    >
-                                                        <VideoPlayer stream={consumer.stream} />
-                                                        <div className="video-label">{peerName}</div>
+                                        {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => {
+                                            const videoConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'video');
+                                            const hasVideo = !!videoConsumer;
+
+                                            return (
+                                                <div
+                                                    key={peer.id}
+                                                    className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
+                                                    onClick={(e) => {
+                                                        const target = e.currentTarget;
+                                                        if (document.fullscreenElement) {
+                                                            document.exitFullscreen();
+                                                        } else {
+                                                            target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+                                                        }
+                                                    }}
+                                                    title={hasVideo ? "Tam ekran için tıkla" : `${peer.username} (Kamera kapalı)`}
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    {hasVideo ? (
+                                                        <VideoPlayer stream={videoConsumer.stream} />
+                                                    ) : (
+                                                        <div className="video-placeholder-content">
+                                                            <Avatar name={peer.username} size="xl" />
+                                                            <div className="placeholder-name">{peer.username}</div>
+                                                            <div className="placeholder-text">Kamera kapalı</div>
+                                                        </div>
+                                                    )}
+
+                                                    <div className="video-label">
+                                                        <span>{peer.username}</span>
+                                                        <div className="video-status-icons" style={{ display: 'flex', gap: '4px', marginLeft: '6px' }}>
+                                                            {peer.isMicMuted && (
+                                                                <MicOffIcon size={14} style={{ color: '#ff4d4d' }} />
+                                                            )}
+                                                            {peer.isDeafened && (
+                                                                <HeadphonesOffIcon size={14} style={{ color: '#ff4d4d' }} />
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                );
-                                            })}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
@@ -885,7 +990,7 @@ function SidebarPeer({
                         />
                     </div>
                 )}
-                {peer.isDeafened && <span style={{ fontSize: '0.7rem', color: 'red' }}>Sağırlaştırıldı</span>}
+
             </div>
         </div>
     );

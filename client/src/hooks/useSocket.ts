@@ -38,7 +38,7 @@ interface UseSocketReturn {
     onChatMessage: (callback: (msg: ChatMessage) => void) => () => void;
 
     // Users
-    peers: Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean }>;
+    peers: Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean; roomId?: string }>;
     fetchPeers: () => Promise<void>;
     // updatePeerStatus sadece local state'i değil, sunucuyu da güncellesin diye ismini değiştirelim veya yeni metod ekleyelim
     // conflict olmaması için: sendStatusUpdate diyelim
