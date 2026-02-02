@@ -51,6 +51,7 @@ interface Consumer {
     kind: 'audio' | 'video';
     consumer: types.Consumer;
     stream: MediaStream;
+    appData?: any; // <-- YENİ
 }
 
 interface UseMediasoupReturn {
@@ -62,7 +63,7 @@ interface UseMediasoupReturn {
     // Metodlar
     loadDevice: () => Promise<boolean>;
     createTransports: () => Promise<boolean>;
-    produceVideo: (track: MediaStreamTrack) => Promise<string | null>;
+    produceVideo: (track: MediaStreamTrack, appData?: any) => Promise<string | null>;
     produceAudio: (track: MediaStreamTrack) => Promise<string | null>;
     consumeAll: () => Promise<void>;
     consumeProducer: (producerId: string) => Promise<void>;
@@ -221,37 +222,43 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
      * ------------------------
      * Kameradan gelen video track'ini sunucuya gönder.
      */
-    const produceVideo = useCallback(async (track: MediaStreamTrack): Promise<string | null> => {
+    const produceVideo = useCallback(async (track: MediaStreamTrack, appData?: any): Promise<string | null> => {
         if (!sendTransportRef.current) {
             console.error('Send transport yok!');
             return null;
         }
 
         try {
-            console.log('📹 Video producer oluşturuluyor...');
+            console.log('📹 Video producer oluşturuluyor...', appData);
 
-            // VP9 varsa onu kullan, yoksa default
+            // VP9 varsa onu kullan, yoksa default video codec
             if (!deviceRef.current) {
                 throw new Error('Device loaded değil');
             }
 
-            const codec = deviceRef.current.rtpCapabilities.codecs?.find(c => c.mimeType.toLowerCase() === 'video/vp9')
-                || deviceRef.current.rtpCapabilities.codecs?.[0];
+            const videoCodecs = deviceRef.current.rtpCapabilities.codecs?.filter(c => c.kind === 'video') || [];
+            if (videoCodecs.length === 0) {
+                throw new Error('Video codec bulunamadı');
+            }
+
+            const codec = videoCodecs.find(c => c.mimeType.toLowerCase() === 'video/vp9')
+                || videoCodecs[0];
 
             const producer = await sendTransportRef.current.produce({
                 track,
                 encodings: [
                     {
-                        maxBitrate: 10000000, // 10 Mbps default limit
+                        maxBitrate: 12000000, // 12 Mbps for 1080p 60fps
                         networkPriority: 'high'
                     }
                 ],
                 codecOptions: {
-                    videoGoogleStartBitrate: 2000, // 2 Mbps ile başla (hızlı kalite)
-                    videoGoogleMaxBitrate: 12000,  // 12 Mbps max
-                    videoGoogleMinBitrate: 1000,   // 1 Mbps min
+                    videoGoogleStartBitrate: 2000,
+                    videoGoogleMaxBitrate: 15000,  // Up to 15 Mbps for ultra-fluidity
+                    videoGoogleMinBitrate: 1000,
                 },
-                codec: codec // VP9 tercihi
+                codec: codec, // VP9 tercihi
+                appData: appData,
             });
 
             setProducers(prev => [...prev, { id: producer.id, kind: 'video', producer }]);
@@ -337,7 +344,8 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
                     producerId: string;
                     kind: 'audio' | 'video';
                     rtpParameters: types.RtpParameters;
-                    peerId: string; // <-- YENİ
+                    peerId: string;
+                    appData?: any; // <-- YENİ
                 }
             >('consume', {
                 producerId,
@@ -358,10 +366,11 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
             setConsumers(prev => [...prev, {
                 id: consumer.id,
                 producerId: consumeParams.producerId,
-                peerId: consumeParams.peerId, // <-- YENİ
+                peerId: consumeParams.peerId,
                 kind: consumeParams.kind,
                 consumer,
                 stream,
+                appData: consumeParams.appData, // <-- YENİ
             }]);
 
             console.log(`✅ ${consumeParams.kind} consumer oluşturuldu:`, consumer.id, 'user:', consumeParams.peerId);

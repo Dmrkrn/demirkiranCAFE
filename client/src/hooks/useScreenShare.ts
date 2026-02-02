@@ -102,11 +102,37 @@ export function useScreenShare(): UseScreenShareReturn {
                             maxWidth: 1920,
                             minHeight: 720,
                             maxHeight: 1080,
-                            minFrameRate: 60, // Kasıtlı olarak yüksek FPS zorla
+                            minFrameRate: 60,
                             maxFrameRate: 60,
                         },
                     } as MediaTrackConstraints,
                 });
+
+                // Audio track için constraints'leri sonradan uygula (Echo Cancellation)
+                const audioTrack = stream.getAudioTracks()[0];
+                if (audioTrack) {
+                    try {
+                        // Chrome/WebRTC'nin gelişmiş yankı engelleme ayarları
+                        await audioTrack.applyConstraints({
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: true, // Echo'yu bastırmak için önemli!
+                            // @ts-ignore - Standart olmayan constraintler
+                            googEchoCancellation: true,
+                            googAutoGainControl: true,
+                            googNoiseSuppression: true,
+                            googHighpassFilter: true, // İnsan sesi dışındaki frekansları kes
+                            googAudioMirroring: false,
+                            // @ts-ignore - Deneysel özellik (Hoparlörden kendi sesini duyma)
+                            suppressLocalAudioPlayback: true,
+                            // @ts-ignore - Kendi sesini (uygulama sesini) yayına katma
+                            restrictOwnAudio: true,
+                        });
+                        console.log('✅ Ekran paylaşımı ses kısıtlamaları uygulandı (Google Constraints)');
+                    } catch (err) {
+                        console.warn('⚠️ Ses kısıtlamaları uygulanamadı:', err);
+                    }
+                }
             } else {
                 // Tarayıcıda - getDisplayMedia kullan (sistem dialog açılır)
                 stream = await navigator.mediaDevices.getDisplayMedia({

@@ -25,6 +25,27 @@ log.transports.file.level = 'info';
 autoUpdater.logger = log;
 log.info('App starting...');
 
+// DRM Bypass / Donanım Hızlandırma Kontrolü
+// ==========================================
+// Black screen (TOD, Netflix vb.) sorununu aşmak için donanım hızlandırmayı kapatma seçeneği.
+// Bu ayar app.whenReady() öncesinde çağrılmalıdır.
+const fs = require('fs');
+const settingsPath = path.join(app.getPath('userData'), 'settings.json');
+let drmBypassEnabled = false;
+
+try {
+    if (fs.existsSync(settingsPath)) {
+        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        if (settings.drmBypass) {
+            drmBypassEnabled = true;
+            app.disableHardwareAcceleration();
+            log.info('🛡️ DRM Bypass aktif: Donanım hızlandırma kapatıldı.');
+        }
+    }
+} catch (err) {
+    log.error('Ayarlar okunamadı:', err);
+}
+
 // Development modunda mı?
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
@@ -32,9 +53,15 @@ const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 // ===============================================
 
 // WebRTC Hardware Acceleration
-app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
-app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
-app.commandLine.appendSwitch('enable-webrtc-hw-h264-encoding');
+if (!drmBypassEnabled) {
+    app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
+    app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
+    app.commandLine.appendSwitch('enable-webrtc-hw-h264-encoding');
+} else {
+    // If DRM Bypass is enabled, disable additional acceleration features
+    // app.commandLine.appendSwitch('disable-accelerated-video-decode');
+    // app.commandLine.appendSwitch('disable-gpu-rasterization');
+}
 
 // Audio Latency & Processing
 app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer,AudioServiceOutOfProcess');
@@ -64,7 +91,7 @@ function createWindow() {
         height: 720,
         minWidth: 800,
         minHeight: 600,
-        show: true, // Explicitly show window
+        show: false, // Explicitly show window
 
         // İkon (Görev çubuğu için)
         icon: path.join(__dirname, '../dist/icon.png'),
@@ -116,6 +143,11 @@ function createWindow() {
         } else {
             mainWindow.maximize();
         }
+    });
+
+    // ready-to-show: İçerik yüklendiğinde pencereyi göster
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
     });
 
     ipcMain.on('window-close', () => {
@@ -258,4 +290,31 @@ setTimeout(() => {
 // Uygulama kapanırken hook'u durdur
 app.on('will-quit', () => {
     uIOhook.stop();
+});
+
+// IPC: Ayarları getir
+ipcMain.handle('get-settings', async () => {
+    try {
+        if (fs.existsSync(settingsPath)) {
+            return JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        }
+    } catch (err) {
+        log.error('Ayarlar okunamadı:', err);
+    }
+    return {};
+});
+
+// IPC: Ayarları kaydet
+ipcMain.on('save-settings', (event, newSettings) => {
+    try {
+        let currentSettings = {};
+        if (fs.existsSync(settingsPath)) {
+            currentSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+        }
+        const updatedSettings = { ...currentSettings, ...newSettings };
+        fs.writeFileSync(settingsPath, JSON.stringify(updatedSettings, null, 2));
+        log.info('Ayarlar kaydedildi:', updatedSettings);
+    } catch (err) {
+        log.error('Ayarlar kaydedilemedi:', err);
+    }
 });

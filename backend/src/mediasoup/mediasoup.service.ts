@@ -274,6 +274,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         transportId: string,
         kind: mediasoupTypes.MediaKind,
         rtpParameters: mediasoupTypes.RtpParameters,
+        appData?: Record<string, unknown>,
     ): Promise<{ id: string } | null> {
         const transport = this.findTransport(clientId, transportId);
 
@@ -284,6 +285,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         const producer = await transport.produce({
             kind,
             rtpParameters,
+            appData,
         });
 
         this.producers.set(producer.id, producer);
@@ -325,6 +327,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         producerId: string;
         kind: mediasoupTypes.MediaKind;
         rtpParameters: mediasoupTypes.RtpParameters;
+        appData: any;
     } | null> {
         if (!this.router) {
             return null;
@@ -366,6 +369,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             producerId: consumer.producerId,
             kind: consumer.kind,
             rtpParameters: consumer.rtpParameters,
+            appData: consumer.appData,
         };
     }
 
@@ -373,10 +377,11 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
      * Tüm aktif producer'ları döndürür
      * Yeni katılan client'ların mevcut yayınları görmesi için
      */
-    getAllProducers(): { id: string; kind: mediasoupTypes.MediaKind }[] {
+    getAllProducers(): { id: string; kind: mediasoupTypes.MediaKind; appData: any }[] {
         return Array.from(this.producers.values()).map((p) => ({
             id: p.id,
             kind: p.kind,
+            appData: p.appData,
         }));
     }
 

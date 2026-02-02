@@ -25,6 +25,8 @@ interface ElectronAPI {
     installUpdate: () => void;
     updateGlobalKeybinds: (keybinds: { toggleMic: number | null, toggleSpeaker: number | null }) => void;
     onGlobalShortcutTriggered: (callback: (action: string) => void) => () => void;
+    getSettings: () => Promise<any>;
+    saveSettings: (settings: any) => void;
 }
 
 declare global {

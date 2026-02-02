@@ -48,3 +48,10 @@ export const playUndeafenSound = () => {
     playBeep(400, 0.1, 0.3);
     setTimeout(() => playBeep(600, 0.15, 0.25), 120);
 };
+
+// Join sound (pleasant triple chime)
+export const playJoinSound = () => {
+    playBeep(400, 0.1, 0.2);
+    setTimeout(() => playBeep(523, 0.1, 0.15), 100);
+    setTimeout(() => playBeep(659, 0.15, 0.15), 200);
+};

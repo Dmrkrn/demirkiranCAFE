@@ -316,14 +316,85 @@
 .video-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
     gap: var(--spacing-md);
     padding: var(--spacing-md);
     overflow-y: auto;
-    /* Scroll INSIDE the grid */
     min-height: 0;
     align-content: flex-start;
-    /* Prevent stretching if few items */
+}
+
+/* Presentation Mode - Ekran Paylaşımı Varken */
+.room-view.presentation-mode {
+    display: flex;
+    flex-direction: column-reverse;
+    /* Katılımcılar üstte olsun istiyorsan column-reverse veya column + flex order */
+}
+
+/* Ama istediğin: Ekran paylaşımı büyük, kullanıcılar küçük ve üstte biriksin */
+.video-grid.presentation-active {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    padding: var(--spacing-sm);
+}
+
+.presentation-hero {
+    flex: 1;
+    min-height: 0;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    position: relative;
+}
+
+.presentation-hero .video-container {
+    width: 100%;
+    height: 100%;
+    max-height: 100%;
+}
+
+.presentation-hero .video-element {
+    object-fit: contain;
+}
+
+.participants-top-bar {
+    display: flex;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-xs) 0;
+    overflow-x: auto;
+    flex-shrink: 0;
+    justify-content: center;
+    scrollbar-width: none;
+    height: 120px;
+}
+
+.participants-top-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.participants-top-bar .video-container {
+    width: 200px;
+    height: 112px;
+    flex-shrink: 0;
+    border-radius: var(--radius-md);
+}
+
+.participants-top-bar .video-placeholder-content .avatar-container {
+    transform: scale(0.6);
+}
+
+.participants-top-bar .placeholder-name {
+    font-size: var(--font-size-xs);
+}
+
+.participants-top-bar .placeholder-text {
+    display: none;
+}
+
+.participants-top-bar .video-label {
+    font-size: 10px;
+    padding: 2px 6px;
 }
 
 .video-placeholder {
@@ -421,7 +492,7 @@
     height: 100%;
     object-fit: contain;
     /* Default: Fit/Contain (No zoom/crop) */
-    background-color: #000;
+    background-color: #000000;
 }
 
 /* Screen share inherits this */
@@ -513,7 +584,13 @@
     border-color: var(--accent);
     /* grid-column: span 2;  <-- REMOVED to prevent shifting layout issue if grid is too small */
     grid-column: 1 / -1;
+    background-color: #000 !important;
     /* Take full width */
+}
+
+/* Remote screen share container */
+.remote-screen-share {
+    background-color: #000 !important;
 }
 
 /* User sharing indicator */

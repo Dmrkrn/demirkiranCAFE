@@ -96,19 +96,19 @@ export function useSocket(): UseSocketReturn {
             setPeers([]); // Peer listesini temizle
         });
 
-        // Yeni kullanıcı katıldığında (veya isim güncellediğinde)
-        socket.on('peer-joined', (data: { peerId: string; username: string }) => {
-            console.log('👤 Yeni kullanıcı katıldı/güncellendi:', data.peerId, data.username);
+        // Yeni kullanıcı katıldığında (veya isim/oda güncellediğinde)
+        socket.on('peer-joined', (data: { peerId: string; username: string; roomId?: string }) => {
+            console.log('👤 Yeni kullanıcı katıldı/güncellendi:', data.peerId, data.username, data.roomId);
             setPeers((prev) => {
                 const existingIndex = prev.findIndex(p => p.id === data.peerId);
                 if (existingIndex !== -1) {
                     // Varsa güncelle
                     const newPeers = [...prev];
-                    newPeers[existingIndex] = { id: data.peerId, username: data.username };
+                    newPeers[existingIndex] = { ...newPeers[existingIndex], id: data.peerId, username: data.username, roomId: data.roomId };
                     return newPeers;
                 }
                 // Yoksa ekle
-                return [...prev, { id: data.peerId, username: data.username }];
+                return [...prev, { id: data.peerId, username: data.username, roomId: data.roomId }];
             });
         });
 

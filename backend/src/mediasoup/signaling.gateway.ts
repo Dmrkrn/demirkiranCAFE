@@ -189,6 +189,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
                 data.transportId,
                 data.kind,
                 data.rtpParameters,
+                data.appData,
             );
 
             if (!producer) {
@@ -207,6 +208,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
                 producerId: producer.id,
                 peerId: client.id,
                 kind: data.kind,
+                appData: data.appData,
             });
 
             return { producerId: producer.id };
@@ -300,6 +302,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
                 kind: consumer.kind,
                 rtpParameters: consumer.rtpParameters,
                 peerId: producerPeerId, // <-- YENİ: Stream'in kime ait olduğu
+                appData: consumer.appData, // <-- YENİ
             };
         } catch (error) {
             this.logger.error(`Consume hatası: ${error.message}`);

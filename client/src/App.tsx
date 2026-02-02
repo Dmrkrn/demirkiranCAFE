@@ -9,7 +9,7 @@ import { TitleBar } from './components/TitleBar';
 import { PingMeter } from './components/PingMeter';
 import { SettingsPanel, loadKeybinds } from './components/SettingsPanel';
 import UpdateNotifier from './components/UpdateNotifier';
-import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound } from './utils/sounds';
+import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound, playJoinSound } from './utils/sounds';
 import { MicIcon, MicOffIcon, HeadphonessIcon, HeadphonesOffIcon, VideoIcon } from './components/Icons';
 import { mapDomCodeToUiohook } from './utils/keymapping';
 import './styles/App.css';
@@ -248,25 +248,51 @@ function App() {
         };
     }, [handleToggleMic, handleToggleDeafen, showSettings, isElectron]); // Listener fonksiyonları değişirse bu hook yenilenir
 
-    // Yeni producer (stream) açıldığında otomatik consume et
+    // Ekran paylaşımlarını takip etmek için state
+    const [availableScreenShares, setAvailableScreenShares] = useState<{ producerId: string; peerId: string }[]>([]);
+
+    // Yeni producer (stream) açıldığında
     useEffect(() => {
         if (!socket || !isJoined) return;
 
-        const handleNewProducer = async (data: { producerId: string; peerId: string }) => {
-            console.log('🆕 Yeni producer algılandı:', data.producerId, 'from', data.peerId);
+        const handlePeerJoined = (data: { peerId: string; username: string }) => {
+            if (data.peerId !== clientId) {
+                console.log('🔔 Bir kullanıcı katıldı, ses çalınıyor...');
+                playJoinSound();
+            }
+        };
+
+        const handleNewProducer = async (data: { producerId: string; peerId: string; kind: string; appData?: { isScreen?: boolean } }) => {
+            console.log('🆕 Yeni producer algılandı:', data.producerId, 'from', data.peerId, 'isScreen:', data.appData?.isScreen);
             try {
-                // Eğer producer bize ait değilse consume et
-                if (data.peerId !== clientId) {
-                    await consumeProducer(data.producerId);
+                if (data.peerId === clientId) return;
+
+                // Ekran paylaşımı ise otomatik consume ETME
+                if (data.appData?.isScreen) {
+                    console.log('🖥️ Ekran paylaşımı algılandı, beklemede:', data.producerId);
+                    setAvailableScreenShares(prev => {
+                        // Duplicate kontrolü
+                        if (prev.find(p => p.producerId === data.producerId)) return prev;
+                        return [...prev, { producerId: data.producerId, peerId: data.peerId }];
+                    });
+                    return;
                 }
+
+                // Diğer durumlarda (Kamera/Mikrofon) otomatik consume et
+                await consumeProducer(data.producerId);
             } catch (error) {
                 console.error('❌ Auto-consume hatası:', error);
             }
         };
 
+        socket.on('peer-joined', handlePeerJoined);
         socket.on('new-producer', handleNewProducer);
 
+        // Bir producer kapandığında listeden çıkar (Signal lazım ama şimdilik consumer kapandığında hallediliyor mu?)
+        // handleProducerClosed signalini dinlemek gerekebilir.
+
         return () => {
+            socket.off('peer-joined', handlePeerJoined);
             socket.off('new-producer', handleNewProducer);
         };
     }, [socket, clientId, isJoined, consumeProducer]);
@@ -462,7 +488,7 @@ function App() {
             // Video produce et
             const screenTrack = stream.getVideoTracks()[0];
             if (screenTrack) {
-                const pid = await produceVideo(screenTrack);
+                const pid = await produceVideo(screenTrack, { isScreen: true });
                 screenProducerIdRef.current = pid;
                 console.log('🖥️ Ekran paylaşımı video producer oluşturuldu:', pid);
             }
@@ -698,96 +724,199 @@ function App() {
                                 <div className="room-content">
                                     {/* Sol: Video Grid */}
                                     <div className="video-section">
-                                        <div className="video-grid">
-                                            {/* Kendi video'muz */}
-                                            <div className="video-container self-video">
-                                                <video
-                                                    ref={localVideoRef}
-                                                    autoPlay
-                                                    muted
-                                                    playsInline
-                                                    className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
-                                                />
-                                                {!videoEnabled && (
-                                                    <div className="video-placeholder-content">
-                                                        <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
-                                                        <div className="placeholder-name">{username}</div>
-                                                        <div className="placeholder-text">Kamera kapalı</div>
+                                        <div className={`video-grid ${(isSharing && screenStream) || consumers.find(c => c.appData?.isScreen) ? 'presentation-active' : ''}`}>
+                                            {/* Sunum Modu Aktifse */}
+                                            {((isSharing && screenStream) || consumers.find(c => c.appData?.isScreen)) ? (
+                                                <>
+                                                    {/* Üst Bar: Katılımcılar */}
+                                                    <div className="participants-top-bar">
+                                                        {/* Ben */}
+                                                        <div className="video-container self-video">
+                                                            <video
+                                                                ref={localVideoRef}
+                                                                autoPlay
+                                                                muted
+                                                                playsInline
+                                                                className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
+                                                            />
+                                                            {!videoEnabled && (
+                                                                <div className="video-placeholder-content">
+                                                                    <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
+                                                                    <div className="placeholder-name">{username}</div>
+                                                                </div>
+                                                            )}
+                                                            <div className="video-label">{username} (Sen)</div>
+                                                        </div>
+
+                                                        {/* Diğerleri (Sadece Kamera olanlar) */}
+                                                        {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => {
+                                                            const videoConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'video' && !c.appData?.isScreen);
+                                                            const hasVideo = !!videoConsumer;
+
+                                                            return (
+                                                                <div key={peer.id} className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}>
+                                                                    {hasVideo ? (
+                                                                        <VideoPlayer stream={videoConsumer.stream} />
+                                                                    ) : (
+                                                                        <div className="video-placeholder-content">
+                                                                            <Avatar name={peer.username} size="sm" />
+                                                                            <div className="placeholder-name">{peer.username}</div>
+                                                                        </div>
+                                                                    )}
+                                                                    <div className="video-label">{peer.username}</div>
+                                                                </div>
+                                                            );
+                                                        })}
                                                     </div>
-                                                )}
-                                                <div className="video-label">{username} (Sen)</div>
-                                            </div>
 
-                                            {/* Ekran paylaşımı video'su */}
-                                            {isSharing && screenStream && (
-                                                <div
-                                                    className="video-container screen-share-video"
-                                                    onClick={(e) => {
-                                                        const target = e.currentTarget;
-                                                        if (document.fullscreenElement) {
-                                                            document.exitFullscreen();
-                                                        } else {
-                                                            target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
-                                                        }
-                                                    }}
-                                                    title="Tam ekran için tıkla"
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <video
-                                                        ref={screenVideoRef}
-                                                        autoPlay
-                                                        muted
-                                                        playsInline
-                                                        className="video-element"
-                                                    />
-                                                    <div className="video-label">🖥️ Ekran Paylaşımı</div>
-                                                </div>
-                                            )}
-
-                                            {/* Diğer kullanıcıların video'ları */}
-                                            {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => {
-                                                const videoConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'video');
-                                                const hasVideo = !!videoConsumer;
-
-                                                return (
-                                                    <div
-                                                        key={peer.id}
-                                                        className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
-                                                        onClick={(e) => {
-                                                            const target = e.currentTarget;
-                                                            if (document.fullscreenElement) {
-                                                                document.exitFullscreen();
-                                                            } else {
-                                                                target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
-                                                            }
-                                                        }}
-                                                        title={hasVideo ? "Tam ekran için tıkla" : `${peer.username} (Kamera kapalı)`}
-                                                        style={{ cursor: 'pointer' }}
-                                                    >
-                                                        {hasVideo ? (
-                                                            <VideoPlayer stream={videoConsumer.stream} />
+                                                    {/* Ana Alan: Ekran Paylaşımı */}
+                                                    <div className="presentation-hero">
+                                                        {isSharing && screenStream ? (
+                                                            <div className="video-container screen-share-video">
+                                                                <video
+                                                                    ref={screenVideoRef}
+                                                                    autoPlay
+                                                                    muted
+                                                                    playsInline
+                                                                    className="video-element"
+                                                                />
+                                                                <div className="video-label">🖥️ Ekran Paylaşımınız</div>
+                                                            </div>
                                                         ) : (
+                                                            (() => {
+                                                                // 1. Zaten izlediğimiz bir yayın var mı?
+                                                                const screenConsumer = consumers.find(c => c.appData?.isScreen);
+                                                                if (screenConsumer) {
+                                                                    const owner = peers.find(p => p.id === screenConsumer.peerId);
+                                                                    return (
+                                                                        <div className="video-container remote-screen-share">
+                                                                            <VideoPlayer stream={screenConsumer.stream} />
+                                                                            <div className="video-label">🖥️ {owner?.username || 'Biri'} Ekran Paylaşıyor</div>
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                // 2. İzlenmeye hazır (bekleyen) yayın var mı?
+                                                                if (availableScreenShares.length > 0) {
+                                                                    return (
+                                                                        <div className="available-streams-container" style={{
+                                                                            display: 'flex',
+                                                                            flexDirection: 'column',
+                                                                            gap: '10px',
+                                                                            justifyContent: 'center',
+                                                                            alignItems: 'center',
+                                                                            height: '100%',
+                                                                            backgroundColor: 'var(--bg-secondary)',
+                                                                            borderRadius: 'var(--radius-lg)'
+                                                                        }}>
+                                                                            {availableScreenShares.map(share => {
+                                                                                const owner = peers.find(p => p.id === share.peerId);
+                                                                                return (
+                                                                                    <div key={share.producerId} className="stream-card" style={{
+                                                                                        padding: '20px',
+                                                                                        backgroundColor: 'var(--bg-primary)',
+                                                                                        borderRadius: 'var(--radius-md)',
+                                                                                        textAlign: 'center',
+                                                                                        border: '1px solid var(--border-color)'
+                                                                                    }}>
+                                                                                        <h3 style={{ margin: '0 0 10px 0', color: 'var(--text-primary)' }}>
+                                                                                            🖥️ {owner?.username || 'Biri'} Ekran Paylaşıyor
+                                                                                        </h3>
+                                                                                        <button
+                                                                                            onClick={() => consumeProducer(share.producerId)}
+                                                                                            style={{
+                                                                                                padding: '10px 20px',
+                                                                                                backgroundColor: 'var(--primary-color)',
+                                                                                                color: 'white',
+                                                                                                border: 'none',
+                                                                                                borderRadius: 'var(--radius-sm)',
+                                                                                                cursor: 'pointer',
+                                                                                                fontSize: '1rem',
+                                                                                                fontWeight: 600
+                                                                                            }}
+                                                                                        >
+                                                                                            Yayını İzle
+                                                                                        </button>
+                                                                                    </div>
+                                                                                );
+                                                                            })}
+                                                                        </div>
+                                                                    );
+                                                                }
+
+                                                                return null;
+                                                            })()
+                                                        )}
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                /* Standart Grid Modu */
+                                                <>
+                                                    {/* Kendi video'muz */}
+                                                    <div className="video-container self-video">
+                                                        <video
+                                                            ref={localVideoRef}
+                                                            autoPlay
+                                                            muted
+                                                            playsInline
+                                                            className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
+                                                        />
+                                                        {!videoEnabled && (
                                                             <div className="video-placeholder-content">
-                                                                <Avatar name={peer.username} size="xl" />
-                                                                <div className="placeholder-name">{peer.username}</div>
+                                                                <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
+                                                                <div className="placeholder-name">{username}</div>
                                                                 <div className="placeholder-text">Kamera kapalı</div>
                                                             </div>
                                                         )}
-
-                                                        <div className="video-label">
-                                                            <span>{peer.username}</span>
-                                                            <div className="video-status-icons" style={{ display: 'flex', gap: '4px', marginLeft: '6px' }}>
-                                                                {peer.isMicMuted && (
-                                                                    <MicOffIcon size={14} style={{ color: '#ff4d4d' }} />
-                                                                )}
-                                                                {peer.isDeafened && (
-                                                                    <HeadphonesOffIcon size={14} style={{ color: '#ff4d4d' }} />
-                                                                )}
-                                                            </div>
-                                                        </div>
+                                                        <div className="video-label">{username} (Sen)</div>
                                                     </div>
-                                                );
-                                            })}
+
+                                                    {/* Diğer kullanıcıların video'ları */}
+                                                    {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => {
+                                                        const videoConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'video');
+                                                        const hasVideo = !!videoConsumer;
+
+                                                        return (
+                                                            <div
+                                                                key={peer.id}
+                                                                className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
+                                                                onClick={(e) => {
+                                                                    const target = e.currentTarget;
+                                                                    if (document.fullscreenElement) {
+                                                                        document.exitFullscreen();
+                                                                    } else {
+                                                                        target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+                                                                    }
+                                                                }}
+                                                                title={hasVideo ? "Tam ekran için tıkla" : `${peer.username} (Kamera kapalı)`}
+                                                                style={{ cursor: 'pointer' }}
+                                                            >
+                                                                {hasVideo ? (
+                                                                    <VideoPlayer stream={videoConsumer.stream} />
+                                                                ) : (
+                                                                    <div className="video-placeholder-content">
+                                                                        <Avatar name={peer.username} size="xl" />
+                                                                        <div className="placeholder-name">{peer.username}</div>
+                                                                        <div className="placeholder-text">Kamera kapalı</div>
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="video-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                                    <span>{peer.username}</span>
+                                                                    <div className="video-status-icons" style={{ display: 'flex', gap: '2px' }}>
+                                                                        {peer.isMicMuted && (
+                                                                            <MicOffIcon size={14} style={{ color: '#ff4d4d' }} />
+                                                                        )}
+                                                                        {peer.isDeafened && (
+                                                                            <HeadphonesOffIcon size={14} style={{ color: '#ff4d4d' }} />
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
 

@@ -58,6 +58,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
         // Return cleanup function
         return () => ipcRenderer.removeListener('global-shortcut-triggered', listener);
     },
+    /**
+     * Uygulama Ayarları
+     */
+    getSettings: () => ipcRenderer.invoke('get-settings'),
+    saveSettings: (settings) => ipcRenderer.send('save-settings', settings),
 });
 
 // Window nesnesine eklediğimizi TypeScript'e bildirmek için
