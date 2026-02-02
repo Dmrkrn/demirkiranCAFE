@@ -40,7 +40,9 @@ interface UseSocketReturn {
     // Users
     peers: Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean }>;
     fetchPeers: () => Promise<void>;
-    updatePeerStatus: (peerId: string, status: { isMicMuted?: boolean; isDeafened?: boolean }) => void;
+    // updatePeerStatus sadece local state'i değil, sunucuyu da güncellesin diye ismini değiştirelim veya yeni metod ekleyelim
+    // conflict olmaması için: sendStatusUpdate diyelim
+    sendStatusUpdate: (status: { isMicMuted?: boolean; isDeafened?: boolean }) => void;
 }
 
 export function useSocket(): UseSocketReturn {
@@ -54,13 +56,14 @@ export function useSocket(): UseSocketReturn {
     /**
      * Peer durumunu güncelle (App.tsx'ten çağrılacak)
      */
-    const updatePeerStatus = useCallback((peerId: string, status: { isMicMuted?: boolean; isDeafened?: boolean }) => {
-        setPeers(prev => prev.map(p => {
-            if (p.id === peerId) {
-                return { ...p, ...status };
-            }
-            return p;
-        }));
+    /**
+     * Peer durumunu güncelle (Local State + Server Emit)
+     */
+    const sendStatusUpdate = useCallback((status: { isMicMuted?: boolean; isDeafened?: boolean }) => {
+        // 1. Sunucuya bildir
+        if (socketRef.current?.connected) {
+            socketRef.current.emit('updatePeerStatus', status);
+        }
     }, []);
 
     useEffect(() => {
@@ -113,6 +116,17 @@ export function useSocket(): UseSocketReturn {
         socket.on('peer-left', (data: { peerId: string }) => {
             console.log('👋 Kullanıcı ayrıldı:', data.peerId);
             setPeers((prev) => prev.filter(p => p.id !== data.peerId));
+        });
+
+        // Kullanıcı durumu güncellendiğinde (Mic/Deafen)
+        socket.on('peer-status-update', (data: { peerId: string; status: { isMicMuted?: boolean; isDeafened?: boolean } }) => {
+            console.log('🔄 Peer status update:', data.peerId, data.status);
+            setPeers(prev => prev.map(p => {
+                if (p.id === data.peerId) {
+                    return { ...p, ...data.status };
+                }
+                return p;
+            }));
         });
 
         // Yeni producer (video/ses kaynağı) oluşturulduğunda
@@ -171,7 +185,7 @@ export function useSocket(): UseSocketReturn {
      */
     const fetchPeers = useCallback(async () => {
         try {
-            const response = await request<{ users: Array<{ id: string; username: string }> }, any>('getUsers');
+            const response = await request<{ users: Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean }> }, any>('getUsers');
             if (response && response.users) {
                 setPeers(response.users);
             }
@@ -203,7 +217,7 @@ export function useSocket(): UseSocketReturn {
         emit,
         request,
         fetchPeers,
-        updatePeerStatus,
+        sendStatusUpdate,
         onChatMessage,
     };
 }

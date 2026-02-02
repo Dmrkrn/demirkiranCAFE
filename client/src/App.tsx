@@ -10,10 +10,11 @@ import { PingMeter } from './components/PingMeter';
 import { SettingsPanel, loadKeybinds } from './components/SettingsPanel';
 import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound } from './utils/sounds';
 import { MicIcon, MicOffIcon, HeadphonessIcon, HeadphonesOffIcon, VideoIcon } from './components/Icons';
+import { mapDomCodeToUiohook } from './utils/keymapping';
 import './styles/App.css';
 
 /**
- * Ana Uygulama Bileşeni (Ekran Paylaşımı Eklendi)
+ * Ana Uygulama Bileşeni (Global Keybinds Eklendi)
  * ================================================
  * 
  * 1. Socket.io ile sunucuya bağlan
@@ -116,8 +117,14 @@ function App() {
         if (localStream) {
             const audioTrack = localStream.getAudioTracks()[0];
             if (audioTrack) {
-                const willBeMuted = audioTrack.enabled;
+                const willBeMuted = audioTrack.enabled; // enabled=true ise mute edilecek demektir
                 toggleAudio();
+
+                // Sunucuya bildir
+                if (socket) {
+                    socket.sendStatusUpdate({ isMicMuted: willBeMuted });
+                }
+
                 if (willBeMuted) {
                     playMuteSound();
                 } else {
@@ -125,40 +132,79 @@ function App() {
                 }
             }
         }
-    }, [localStream, toggleAudio]);
+    }, [localStream, toggleAudio, socket]);
 
+    // Sesi kapat/aç - Deafen (sesli bildirimle)
     // Sesi kapat/aç - Deafen (sesli bildirimle)
     const handleToggleDeafen = useCallback(() => {
         const newDeafened = !isDeafened;
         setIsDeafened(newDeafened);
+
+        // Sunucuya bildir
+        if (socket) {
+            socket.sendStatusUpdate({ isDeafened: newDeafened });
+        }
+
         if (newDeafened) playDeafenSound();
         else playUndeafenSound();
-    }, [isDeafened]);
+    }, [isDeafened, socket]);
 
-    // Global keybind listener
+    // 1. Keybind Konfigürasyonunu Main Process'e Gönder (Sadece ayarlar kapandığında veya mount olunca)
+    useEffect(() => {
+        if (!isElectron) return;
+
+        const keybinds = loadKeybinds();
+        if (window.electronAPI && window.electronAPI.updateGlobalKeybinds) {
+            const uiohookKeybinds = {
+                toggleMic: mapDomCodeToUiohook(keybinds.toggleMic),
+                toggleSpeaker: mapDomCodeToUiohook(keybinds.toggleSpeaker)
+            };
+            window.electronAPI.updateGlobalKeybinds(uiohookKeybinds);
+        }
+    }, [isElectron, showSettings]); // Sadece ayarlar değişince güncelle
+
+    // 2. Global Listener (Olayları Dinle)
     useEffect(() => {
         const keybinds = loadKeybinds();
 
         const handleKeyDown = (e: KeyboardEvent) => {
-            // Settings paneli açıkken keybind'leri dinleme
             if (showSettings) return;
-
-            // Input elementlerinde keybind'leri dinleme
             const target = e.target as HTMLElement;
             if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
             if (e.code === keybinds.toggleMic) {
-                e.preventDefault();
-                handleToggleMic();
+                if (!isElectron) {
+                    e.preventDefault();
+                    handleToggleMic();
+                }
             } else if (e.code === keybinds.toggleSpeaker) {
-                e.preventDefault();
-                handleToggleDeafen();
+                if (!isElectron) {
+                    e.preventDefault();
+                    handleToggleDeafen();
+                }
             }
         };
 
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [showSettings, handleToggleMic, handleToggleDeafen]);
+        if (!isElectron) {
+            window.addEventListener('keydown', handleKeyDown);
+        }
+
+        // Electron Global Listener
+        let cleanupGlobal: (() => void) | undefined;
+        if (window.electronAPI && window.electronAPI.onGlobalShortcutTriggered) {
+            cleanupGlobal = window.electronAPI.onGlobalShortcutTriggered((action: string) => {
+                console.log("Global shortcut triggered:", action); // Debug log
+                // Ses efektleri handle fonksiyonlarının içinde var, çalışması lazım.
+                if (action === 'toggleMic') handleToggleMic();
+                if (action === 'toggleSpeaker') handleToggleDeafen();
+            });
+        }
+
+        return () => {
+            if (!isElectron) window.removeEventListener('keydown', handleKeyDown);
+            if (cleanupGlobal) cleanupGlobal();
+        };
+    }, [handleToggleMic, handleToggleDeafen, showSettings, isElectron]); // Listener fonksiyonları değişirse bu hook yenilenir
 
     // Yeni producer (stream) açıldığında otomatik consume et
     useEffect(() => {

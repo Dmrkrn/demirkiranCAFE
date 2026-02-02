@@ -47,6 +47,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onUpdateProgress: (callback) => ipcRenderer.on('update-progress', (_event, progress) => callback(progress)),
     onUpdateDownloaded: (callback) => ipcRenderer.on('update-downloaded', (_event, info) => callback(info)),
     installUpdate: () => ipcRenderer.send('install-update'),
+
+    /**
+     * Global Keybinds
+     */
+    updateGlobalKeybinds: (keybinds) => ipcRenderer.send('update-global-keybinds', keybinds),
+    onGlobalShortcutTriggered: (callback) => {
+        const listener = (_event, action) => callback(action);
+        ipcRenderer.on('global-shortcut-triggered', listener);
+        // Return cleanup function
+        return () => ipcRenderer.removeListener('global-shortcut-triggered', listener);
+    },
 });
 
 // Window nesnesine eklediğimizi TypeScript'e bildirmek için

@@ -64,6 +64,7 @@ function createWindow() {
         height: 720,
         minWidth: 800,
         minHeight: 600,
+        show: true, // Explicitly show window
 
         // İkon (Görev çubuğu için)
         icon: path.join(__dirname, '../dist/icon.png'),
@@ -199,6 +200,7 @@ app.on('window-all-closed', () => {
  * Ekran paylaşımı için desktopCapturer gibi özellikler
  * burada expose edilecek
  */
+// IPC: Desktop Sources
 ipcMain.handle('get-desktop-sources', async () => {
     const { desktopCapturer } = require('electron');
     const sources = await desktopCapturer.getSources({
@@ -211,4 +213,49 @@ ipcMain.handle('get-desktop-sources', async () => {
         name: source.name,
         thumbnail: source.thumbnail.toDataURL(),
     }));
+});
+
+// ==========================================
+// Global Keybinds (Passive / uIOhook)
+// ==========================================
+const { uIOhook, UiohookKey } = require('uiohook-napi');
+
+let globalKeybinds = {
+    toggleMic: null,
+    toggleSpeaker: null
+};
+
+// Frontend'den keybind map'ini al (uIOhook kodlarıyla)
+ipcMain.on('update-global-keybinds', (event, keybinds) => {
+    // keybinds: { toggleMic: 50, toggleSpeaker: 32 } gibi
+    globalKeybinds = keybinds;
+    log.info('Global keybinds updated:', globalKeybinds);
+});
+
+// Hook event listener
+uIOhook.on('input', (e) => {
+    // Sadece KEY_DOWN eventleri (type 4 = keydown, 5 = keyup)
+    // uIOhook-napi: e.type === 4 (keydown)
+    if (e.type === 4) {
+        if (globalKeybinds.toggleMic && e.keycode === globalKeybinds.toggleMic) {
+            // Renderer'a haber ver
+            const wins = BrowserWindow.getAllWindows();
+            wins.forEach(win => win.webContents.send('global-shortcut-triggered', 'toggleMic'));
+        }
+        if (globalKeybinds.toggleSpeaker && e.keycode === globalKeybinds.toggleSpeaker) {
+            const wins = BrowserWindow.getAllWindows();
+            wins.forEach(win => win.webContents.send('global-shortcut-triggered', 'toggleSpeaker'));
+        }
+    }
+});
+
+// Hook'u başlat (Biraz gecikmeli başlat ki UI çizilsin)
+setTimeout(() => {
+    log.info('Starting uIOhook...');
+    uIOhook.start();
+}, 2000);
+
+// Uygulama kapanırken hook'u durdur
+app.on('will-quit', () => {
+    uIOhook.stop();
 });

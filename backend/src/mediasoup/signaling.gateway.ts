@@ -363,6 +363,35 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
 
     /**
+     * Kullanıcı Durumunu Güncelle (Mic/Deafen)
+     * ----------------------------------------
+     * Client kendi durumunu (mic muted, deadened) güncellediğinde
+     * diğer kullanıcılara bildir.
+     */
+    @SubscribeMessage('updatePeerStatus')
+    handleUpdatePeerStatus(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { isMicMuted?: boolean; isDeafened?: boolean },
+    ) {
+        const clientInfo = this.clients.get(client.id);
+        if (clientInfo) {
+            // Durumları güncelle (Merge et)
+            // Not: Typescript tanımına bu alanları eklemedik ama JS objesi olduğu için tutabiliriz.
+            // İdealde interface'i güncellemek lazım ama runtime'da çalışır.
+            Object.assign(clientInfo, data);
+
+            this.logger.log(`🔄 Status update: ${client.id} -> ${JSON.stringify(data)}`);
+
+            // Diğer client'lara bildir
+            client.broadcast.emit('peer-status-update', {
+                peerId: client.id,
+                status: data,
+            });
+        }
+        return { success: true };
+    }
+
+    /**
      * Mevcut kullanıcıları listele
      */
     @SubscribeMessage('getUsers')
@@ -372,6 +401,9 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             .map(([id, info]) => ({
                 id,
                 username: info.username || 'Anonim',
+                // Mevcut durumları da gönder
+                isMicMuted: (info as any).isMicMuted,
+                isDeafened: (info as any).isDeafened,
             }));
 
         return { users };
