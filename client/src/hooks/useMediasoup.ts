@@ -230,7 +230,11 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
         try {
             console.log('📹 Video producer oluşturuluyor...');
 
-            // VP9 varsa onu kullan, yoksa default (VP8/H264)
+            // VP9 varsa onu kullan, yoksa default
+            if (!deviceRef.current) {
+                throw new Error('Device loaded değil');
+            }
+
             const codec = deviceRef.current.rtpCapabilities.codecs?.find(c => c.mimeType.toLowerCase() === 'video/vp9')
                 || deviceRef.current.rtpCapabilities.codecs?.[0];
 

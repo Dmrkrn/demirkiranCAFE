@@ -10,19 +10,19 @@ const UpdateNotifier: React.FC = () => {
         if (!window.electronAPI) return;
 
         // Güncelleme bulundu
-        const cleanupAvailable = window.electronAPI.onUpdateAvailable(() => {
+        window.electronAPI.onUpdateAvailable(() => {
             setUpdateStatus('available');
             console.log('📢 Güncelleme bulundu!');
         });
 
         // İndirme ilerlemesi
-        const cleanupProgress = window.electronAPI.onUpdateProgress((info: any) => {
+        window.electronAPI.onUpdateProgress((info: any) => {
             setUpdateStatus('downloading');
             setProgress(info.percent);
         });
 
         // İndirme tamamlandı
-        const cleanupDownloaded = window.electronAPI.onUpdateDownloaded(() => {
+        window.electronAPI.onUpdateDownloaded(() => {
             setUpdateStatus('downloaded');
             console.log('✅ Güncelleme indirildi!');
         });

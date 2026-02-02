@@ -886,29 +886,27 @@ function App() {
                     </main>
                 </div>
             </div>
-            );
+        </div>
+    );
 }
 
-            /**
-             * Video Player Bileşeni
-             */
-            /**
-             * Video Player Bileşeni
-             */
-            function VideoPlayer({stream}: {stream: MediaStream }) {
+/**
+ * Video Player Bileşeni
+ */
+function VideoPlayer({ stream }: { stream: MediaStream }) {
     const videoRef = useRef<HTMLVideoElement>(null);
-                const isSpeaking = useAudioLevel(stream);
-                const [stats, setStats] = useState('');
+    const isSpeaking = useAudioLevel(stream);
+    const [stats, setStats] = useState('');
 
     useEffect(() => {
         if (videoRef.current) {
-                    videoRef.current.srcObject = stream;
+            videoRef.current.srcObject = stream;
         }
 
         // Basit çözünürlük takibi (Debug için)
         const interval = setInterval(() => {
             if (videoRef.current) {
-                const {videoWidth, videoHeight} = videoRef.current;
+                const { videoWidth, videoHeight } = videoRef.current;
                 if (videoWidth) {
                     setStats(`${videoWidth}x${videoHeight}`);
                 }
@@ -917,168 +915,149 @@ function App() {
         return () => clearInterval(interval);
     }, [stream]);
 
-                return (
-                <div className="video-wrapper" style={{ position: 'relative' }}>
-                    <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        className={`video-element ${isSpeaking ? 'speaking' : ''}`}
-                    />
-                    {stats && <div style={{
-                        position: 'absolute',
-                        top: 5,
-                        left: 5,
-                        background: 'rgba(0,0,0,0.5)',
-                        color: 'white',
-                        padding: '2px 5px',
-                        fontSize: '10px',
-                        borderRadius: '4px',
-                        pointerEvents: 'none'
-                    }}>{stats}</div>}
-                </div>
-                );
+    return (
+        <div className="video-wrapper" style={{ position: 'relative' }}>
+            <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className={`video-element ${isSpeaking ? 'speaking' : ''}`}
+            />
+            {stats && <div style={{
+                position: 'absolute',
+                top: 5,
+                left: 5,
+                background: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                padding: '2px 5px',
+                fontSize: '10px',
+                borderRadius: '4px',
+                pointerEvents: 'none'
+            }}>{stats}</div>}
+        </div>
+    );
 }
 
-                /**
-                 * Audio Player Bileşeni
-                 * Tarayıcı autoplay politikasına uygun şekilde ses çalar
-                 */
-                function AudioPlayer({stream, muted, volume = 100}: {stream: MediaStream; muted: boolean, volume?: number }) {
+/**
+ * Audio Player Bileşeni
+ */
+function AudioPlayer({ stream, muted, volume = 100 }: { stream: MediaStream; muted: boolean, volume?: number }) {
     const audioRef = useRef<HTMLAudioElement>(null);
 
     useEffect(() => {
         const audio = audioRef.current;
-                    if (!audio || !stream) return;
+        if (!audio || !stream) return;
 
-                    audio.srcObject = stream;
+        audio.srcObject = stream;
 
-        // Tarayıcı autoplay politikasına uygun şekilde play et
         const playAudio = async () => {
             try {
-                        await audio.play();
-                    console.log('🔊 Audio playback started');
+                await audio.play();
+                console.log('🔊 Audio playback started');
             } catch (error) {
-                        console.warn('⚠️ Audio autoplay blocked, waiting for user interaction');
-                // Kullanıcı etkileşiminden sonra tekrar dene
+                console.warn('⚠️ Audio autoplay blocked, waiting for user interaction');
                 const handleInteraction = async () => {
                     try {
                         await audio.play();
-                    console.log('🔊 Audio playback started after interaction');
-                    document.removeEventListener('click', handleInteraction);
+                        console.log('🔊 Audio playback started after interaction');
+                        document.removeEventListener('click', handleInteraction);
                     } catch (e) {
                         console.error('Audio play failed:', e);
                     }
                 };
-                    document.addEventListener('click', handleInteraction);
+                document.addEventListener('click', handleInteraction);
             }
         };
 
-                    playAudio();
+        playAudio();
     }, [stream]);
 
-    // Volume değişikliğini uygula
     useEffect(() => {
         if (audioRef.current) {
-                        // HTMLMediaElement volume 0.0 - 1.0 arasıdır
-                        audioRef.current.volume = volume / 100;
+            audioRef.current.volume = volume / 100;
         }
     }, [volume]);
 
-                    return (
-                    <audio
-                        ref={audioRef}
-                        muted={muted}
-                        playsInline
-                        style={{ display: 'none' }}
-                    />
-                    );
+    return (
+        <audio
+            ref={audioRef}
+            muted={muted}
+            playsInline
+            style={{ display: 'none' }}
+        />
+    );
 }
 
-                    /**
-                     * Sidebar Peer Bileşeni (Ses aktivitesi için)
-                     */
-                    function SidebarPeer({
-                        peer,
-                        consumers,
-                        volume,
-                        onVolumeChange
-                    }: {
-                        peer: {id: string, username: string, isMicMuted?: boolean, isDeafened?: boolean },
-                    consumers: any[],
-                    volume: number,
+/**
+ * Sidebar Peer Bileşeni (Ses aktivitesi için)
+ */
+function SidebarPeer({
+    peer,
+    consumers,
+    volume,
+    onVolumeChange
+}: {
+    peer: { id: string, username: string, isMicMuted?: boolean, isDeafened?: boolean },
+    consumers: any[],
+    volume: number,
     onVolumeChange: (id: string, vol: number) => void
 }) {
     const peerConsumers = consumers.filter(c => c.peerId === peer.id);
     const hasVideo = peerConsumers.some(c => c.kind === 'video');
     const audioConsumer = peerConsumers.find(c => c.kind === 'audio');
 
-                    // Konuşuyor mu? (Eğer mute'lu ise konuşmuyor say)
-                    const rawIsSpeaking = useAudioLevel(audioConsumer?.stream || null);
-                    const isSpeaking = rawIsSpeaking && !peer.isMicMuted;
+    const rawIsSpeaking = useAudioLevel(audioConsumer?.stream || null);
+    const isSpeaking = rawIsSpeaking && !peer.isMicMuted;
 
-                    // Sağ tık menüsü state'i (basitçe her zaman gösterilen slider yerine hover ile gösterilebilir, ama şimdilik inline yapalım)
-                    const [showVolume, setShowVolume] = useState(false);
-
-    // Screen share durumu için consumer kontrolü
+    const [showVolume, setShowVolume] = useState(false);
     const hasScreen = peerConsumers.some(c => c.stream?.getVideoTracks()[0]?.label?.toLowerCase().includes('screen') || c.appData?.source === 'screen');
-    // Not: Mediasoup consumer appData kullanmak daha garantidir ama şimdilik video track kontrolü veya 'user-sharing' class'ı App.tsx'den gelmiyor,
-    // App.tsx'de isSharing local için var. Remote peer için screen share iconunu nasıl anlıyoruz?
-    // Mevcut kodda sidebar'da screen share iconu GÖSTERİLMİYORDU (remote peer için).
-    // Ancak user "o ikonu soldaki menüye koy" dedi, bu kendi ikonumuz için mi?
-    // Evet, App.tsx'de kendi kullanıcı bölümümüz için:
-    /*
-        {isSharing && <span className="user-sharing"><ScreenShareIcon /></span>}
-                    */
 
-                    return (
-                    <div
-                        className={`user-item ${isSpeaking ? 'speaking' : ''}`}
-                        onMouseEnter={() => setShowVolume(true)}
-                        onMouseLeave={() => setShowVolume(false)}
-                    >
-                        <Avatar name={peer.username} size="sm" />
-                        <div className="user-info-col" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span className="user-name">{peer.username}</span>
-                                <div className="user-status-icons">
-                                    <span className={`status-icon ${peer.isMicMuted ? 'muted' : ''}`} title={peer.isMicMuted ? 'Mikrofon Kapalı' : 'Mikrofon Açık'}>
-                                        {peer.isMicMuted ? <MicOffIcon size={16} /> : (audioConsumer ? <MicIcon size={16} /> : <MicOffIcon size={16} style={{ opacity: 0.5 }} />)}
-                                    </span>
-                                    <span className={`status-icon ${peer.isDeafened ? 'muted' : ''}`} title={peer.isDeafened ? 'Ses Kapalı' : 'Ses Açık'}>
-                                        {peer.isDeafened ? <HeadphonesOffIcon size={16} /> : <HeadphonessIcon size={16} />}
-                                    </span>
-                                    {hasVideo &&
-                                        <span className="status-icon" title="Kamera Açık">
-                                            <VideoIcon size={16} />
-                                        </span>
-                                    }
-                                    {hasScreen &&
-                                        <span className="status-icon" title="Ekran Paylaşıyor">
-                                            🖥️
-                                        </span>
-                                    }
-                                </div>
-                            </div>
-                            {/* Volume Slider - Hover yapınca veya volume değişmişse göster */}
-                            {(showVolume || volume !== 100) && audioConsumer && (
-                                <div className="user-volume-control" onClick={e => e.stopPropagation()} style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                    <span style={{ fontSize: '0.7rem' }}>🔊</span>
-                                    <input
-                                        type="range"
-                                        min="0"
-                                        max="100"
-                                        value={volume}
-                                        onChange={(e) => onVolumeChange(peer.id, Number(e.target.value))}
-                                        style={{ width: '100%', height: '4px' }}
-                                        title={`Ses Seviyesi: ${volume}%`}
-                                    />
-                                </div>
-                            )}
-
-                        </div>
+    return (
+        <div
+            className={`user-item ${isSpeaking ? 'speaking' : ''}`}
+            onMouseEnter={() => setShowVolume(true)}
+            onMouseLeave={() => setShowVolume(false)}
+        >
+            <Avatar name={peer.username} size="sm" />
+            <div className="user-info-col" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span className="user-name">{peer.username}</span>
+                    <div className="user-status-icons">
+                        <span className={`status-icon ${peer.isMicMuted ? 'muted' : ''}`} title={peer.isMicMuted ? 'Mikrofon Kapalı' : 'Mikrofon Açık'}>
+                            {peer.isMicMuted ? <MicOffIcon size={16} /> : (audioConsumer ? <MicIcon size={16} /> : <MicOffIcon size={16} style={{ opacity: 0.5 }} />)}
+                        </span>
+                        <span className={`status-icon ${peer.isDeafened ? 'muted' : ''}`} title={peer.isDeafened ? 'Ses Kapalı' : 'Ses Açık'}>
+                            {peer.isDeafened ? <HeadphonesOffIcon size={16} /> : <HeadphonessIcon size={16} />}
+                        </span>
+                        {hasVideo &&
+                            <span className="status-icon" title="Kamera Açık">
+                                <VideoIcon size={16} />
+                            </span>
+                        }
+                        {hasScreen &&
+                            <span className="status-icon" title="Ekran Paylaşıyor">
+                                🖥️
+                            </span>
+                        }
                     </div>
-                    );
+                </div>
+                {(showVolume || volume !== 100) && audioConsumer && (
+                    <div className="user-volume-control" onClick={e => e.stopPropagation()} style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                        <span style={{ fontSize: '0.7rem' }}>🔊</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={volume}
+                            onChange={(e) => onVolumeChange(peer.id, Number(e.target.value))}
+                            style={{ width: '100%', height: '4px' }}
+                            title={`Ses Seviyesi: ${volume}%`}
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
 
-                    export default App;
+export default App;
