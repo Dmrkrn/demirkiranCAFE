@@ -14,10 +14,8 @@ interface QualitySelectorProps {
 }
 
 const qualityLabels: Record<QualityPreset, string> = {
-    low: '360p',
-    medium: '720p',
-    high: '1080p',
-    ultra: '1080p 60fps',
+    hd60: '720p 60 FPS (Hızlı)',
+    fhd60: '1080p 60 FPS (Net)',
 };
 
 export function QualitySelector({ currentQuality, onQualityChange }: QualitySelectorProps) {

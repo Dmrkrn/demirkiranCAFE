@@ -62,6 +62,15 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         },
         {
             kind: 'video',
+            mimeType: 'video/VP9',
+            clockRate: 90000,
+            parameters: {
+                'profile-id': 2,
+                'x-google-start-bitrate': 1000,
+            },
+        },
+        {
+            kind: 'video',
             mimeType: 'video/H264',
             clockRate: 90000,
             parameters: {
@@ -287,6 +296,18 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
         this.logger.log(`📹 ${kind === 'video' ? 'Video' : 'Ses'} Producer oluşturuldu: ${producer.id}`);
 
         return { id: producer.id };
+    }
+
+    /**
+     * Producer'ı kapat
+     */
+    closeProducer(producerId: string) {
+        const producer = this.producers.get(producerId);
+        if (producer) {
+            producer.close();
+            this.producers.delete(producerId);
+            this.logger.log(`🛑 Producer kapatıldı (Manual): ${producerId}`);
+        }
     }
 
     /**

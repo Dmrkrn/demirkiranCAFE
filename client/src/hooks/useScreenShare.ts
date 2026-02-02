@@ -88,16 +88,21 @@ export function useScreenShare(): UseScreenShareReturn {
             if (window.electronAPI && sourceId) {
                 // Electron içinde - chromeMediaSource kullan
                 stream = await navigator.mediaDevices.getUserMedia({
-                    audio: false, // Sistem sesi için ayrı işlem gerekir
+                    audio: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: sourceId,
+                        }
+                    } as any,
                     video: {
                         mandatory: {
                             chromeMediaSource: 'desktop',
                             chromeMediaSourceId: sourceId,
-                            minWidth: 1920,
+                            minWidth: 1280,
                             maxWidth: 1920,
-                            minHeight: 1080,
+                            minHeight: 720,
                             maxHeight: 1080,
-                            minFrameRate: 30,
+                            minFrameRate: 60, // Kasıtlı olarak yüksek FPS zorla
                             maxFrameRate: 60,
                         },
                     } as MediaTrackConstraints,
@@ -108,10 +113,20 @@ export function useScreenShare(): UseScreenShareReturn {
                     video: {
                         width: { ideal: 1920 },
                         height: { ideal: 1080 },
-                        frameRate: { ideal: 30, max: 60 },
+                        frameRate: 60, // 60 FPS
                     },
-                    audio: false, // Sistem sesi
+                    audio: true, // Sistem sesi
                 });
+            }
+
+            // Optimize for motion (spor/oyun)
+            const videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+                // @ts-ignore
+                if (videoTrack.contentHint !== undefined) {
+                    // @ts-ignore
+                    videoTrack.contentHint = 'motion';
+                }
             }
 
             streamRef.current = stream;

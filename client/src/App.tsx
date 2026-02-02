@@ -91,7 +91,8 @@ function App() {
         produceVideo,
         produceAudio,
         consumeAll,
-        consumeProducer, // <-- Import added
+        consumeProducer,
+        closeProducer,
         closeAll,
     } = useMediasoup({ request });
 
@@ -113,8 +114,29 @@ function App() {
     // Ping Ölçer
     const { ping, pingStatus } = usePing();
 
+    // Screen Share Producer ID'lerini takip et (Kapatmak için)
+    const screenProducerIdRef = useRef<string | null>(null);
+    const screenAudioProducerIdRef = useRef<string | null>(null);
+
+    // Ekran paylaşımı durduğunda producer'ları kapat (UI Cleanup Bug Fix)
+    useEffect(() => {
+        if (!isSharing) {
+            if (screenProducerIdRef.current) {
+                closeProducer(screenProducerIdRef.current);
+                screenProducerIdRef.current = null;
+                console.log('🛑 Ekran video producer kapatıldı');
+            }
+            if (screenAudioProducerIdRef.current) {
+                closeProducer(screenAudioProducerIdRef.current);
+                screenAudioProducerIdRef.current = null;
+                console.log('🛑 Ekran audio producer kapatıldı');
+            }
+        }
+    }, [isSharing]); // isSharing false olduğunda çalışır
+
     // Electron API kontrolü
     const [isElectron, setIsElectron] = useState(false);
+    const [loginError, setLoginError] = useState<string | null>(null);
 
     useEffect(() => {
         setIsElectron(typeof window !== 'undefined' && 'electronAPI' in window);
@@ -283,34 +305,38 @@ function App() {
     /**
      * Odaya Katıl
      */
+    /**
+     * Odaya Katıl
+     */
     const handleJoinRoom = async (overrideRoomId?: string, overridePassword?: string) => {
         const roomIdToJoin = overrideRoomId || selectedRoom;
-        const passwordToUse = overridePassword || roomPassword;
+        const passwordToUse = overridePassword !== undefined ? overridePassword : roomPassword;
 
         if (!username.trim()) {
-            alert('Lütfen bir kullanıcı adı girin!');
+            setLoginError('Lütfen bir kullanıcı adı girin.');
             return;
         }
 
         if (!isConnected) {
-            alert('Sunucuya bağlı değil! Backend çalışıyor mu?');
+            setLoginError('Sunucuya bağlı değil! Backend çalışıyor mu?');
             return;
         }
+
+        setLoginError(null); // Hataları temizle
 
         try {
             setJoiningStatus('connecting');
 
             // Adım 0: Önce kimliğimizi sunucuya kaydettirelim!
-            // Böylece sonraki işlemlerimizde adımız "Anonim" görünmez.
             const userResponse = await request('setUsername', {
                 username,
                 password: passwordToUse,
                 roomId: roomIdToJoin
             }) as { success: boolean; error?: string };
+
             if (!userResponse || !userResponse.success) {
                 throw new Error(userResponse?.error || 'Kullanıcı adı alınamadı');
             }
-            // Başarılı olursa (ama daha tam katılmadık, UI dönebilir)
 
             console.log('📱 Adım 1: Device yükleniyor...');
             const deviceLoaded = await loadDevice();
@@ -343,8 +369,8 @@ function App() {
 
         } catch (error) {
             console.error('❌ Odaya katılma hatası:', error);
-            setJoiningStatus('idle'); // Hata durumunda tekrar denemeye izin ver
-            alert(`Hata: ${error instanceof Error ? error.message : 'Bilinmeyen hata'}`);
+            setJoiningStatus('idle'); // Tekrar denemeye izin ver
+            setLoginError(error instanceof Error ? error.message : 'Bağlantı hatası oluştu');
         }
     };
 
@@ -405,11 +431,20 @@ function App() {
             // Tarayıcıda doğrudan getDisplayMedia kullan
             const stream = await startScreenShare('');
             if (stream) {
-                // Ekran paylaşımını produce et
+                // Video produce et
                 const screenTrack = stream.getVideoTracks()[0];
                 if (screenTrack) {
-                    await produceVideo(screenTrack);
-                    console.log('🖥️ Ekran paylaşımı producer oluşturuldu');
+                    const pid = await produceVideo(screenTrack);
+                    screenProducerIdRef.current = pid;
+                    console.log('🖥️ Ekran paylaşımı video producer oluşturuldu:', pid);
+                }
+
+                // Audio produce et (Sistem sesi varsa)
+                const audioTrack = stream.getAudioTracks()[0];
+                if (audioTrack) {
+                    const pid = await produceAudio(audioTrack);
+                    screenAudioProducerIdRef.current = pid;
+                    console.log('🔊 Ekran paylaşımı audio producer oluşturuldu:', pid);
                 }
             }
         }
@@ -423,11 +458,20 @@ function App() {
 
         const stream = await startScreenShare(sourceId);
         if (stream) {
-            // Ekran paylaşımını produce et
+            // Video produce et
             const screenTrack = stream.getVideoTracks()[0];
             if (screenTrack) {
-                await produceVideo(screenTrack);
-                console.log('🖥️ Ekran paylaşımı producer oluşturuldu');
+                const pid = await produceVideo(screenTrack);
+                screenProducerIdRef.current = pid;
+                console.log('🖥️ Ekran paylaşımı video producer oluşturuldu:', pid);
+            }
+
+            // Audio produce et (Sistem sesi varsa)
+            const audioTrack = stream.getAudioTracks()[0];
+            if (audioTrack) {
+                const pid = await produceAudio(audioTrack);
+                screenAudioProducerIdRef.current = pid;
+                console.log('🔊 Ekran paylaşımı audio producer oluşturuldu:', pid);
             }
         }
     };
@@ -613,14 +657,23 @@ function App() {
                                     type="password"
                                     placeholder="Oda Şifresi"
                                     value={roomPassword}
-                                    onChange={(e) => setRoomPassword(e.target.value)}
+                                    onChange={(e) => {
+                                        setRoomPassword(e.target.value);
+                                        if (loginError) setLoginError(null);
+                                    }}
                                     onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
-                                    className="username-input password-input"
+                                    className={`username-input password-input ${loginError ? 'input-error' : ''}`}
                                     disabled={joiningStatus === 'connecting'}
                                 />
 
+                                {loginError && (
+                                    <div className="error-message" style={{ color: '#ff4444', marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>
+                                        {loginError}
+                                    </div>
+                                )}
+
                                 <button
-                                    onClick={handleJoinRoom}
+                                    onClick={() => handleJoinRoom()}
                                     className="connect-button"
                                     disabled={joiningStatus === 'connecting' || !isConnected}
                                 >
@@ -835,23 +888,51 @@ function App() {
 /**
  * Video Player Bileşeni
  */
+/**
+ * Video Player Bileşeni
+ */
 function VideoPlayer({ stream }: { stream: MediaStream }) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const isSpeaking = useAudioLevel(stream);
+    const [stats, setStats] = useState('');
 
     useEffect(() => {
         if (videoRef.current) {
             videoRef.current.srcObject = stream;
         }
+
+        // Basit çözünürlük takibi (Debug için)
+        const interval = setInterval(() => {
+            if (videoRef.current) {
+                const { videoWidth, videoHeight } = videoRef.current;
+                if (videoWidth) {
+                    setStats(`${videoWidth}x${videoHeight}`);
+                }
+            }
+        }, 1000);
+        return () => clearInterval(interval);
     }, [stream]);
 
     return (
-        <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            className={`video-element ${isSpeaking ? 'speaking' : ''}`}
-        />
+        <div className="video-wrapper" style={{ position: 'relative' }}>
+            <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className={`video-element ${isSpeaking ? 'speaking' : ''}`}
+            />
+            {stats && <div style={{
+                position: 'absolute',
+                top: 5,
+                left: 5,
+                background: 'rgba(0,0,0,0.5)',
+                color: 'white',
+                padding: '2px 5px',
+                fontSize: '10px',
+                borderRadius: '4px',
+                pointerEvents: 'none'
+            }}>{stats}</div>}
+        </div>
     );
 }
 

@@ -217,6 +217,43 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     }
 
     /**
+     * Producer'ı Kapat
+     * ----------------
+     * Client bir yayını (örn: ekran paylaşımı) durdurduğunda çağrılır.
+     * Sunucu tarafındaki producer'ı kapatır ve consumer'lara haber verir.
+     */
+    @SubscribeMessage('closeProducer')
+    handleCloseProducer(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { producerId: string },
+    ) {
+        this.logger.log(`🛑 Close Producer isteği: ${client.id} -> ${data.producerId}`);
+
+        const clientInfo = this.clients.get(client.id);
+        if (!clientInfo) return;
+
+        // Producer'ı listemizden sil
+        const index = clientInfo.producers.indexOf(data.producerId);
+        if (index !== -1) {
+            clientInfo.producers.splice(index, 1);
+        }
+
+        // Mediasoup servisinden kapat (bu işlem otomatik olarak "producerclose" event'ini tetikler)
+        // Ancak bu event transport üzerinden consumer'a gider.
+        // Bizim ayrıyeten socket.io ile de bildirmemiz iyi olabilir (garanti olsun diye)
+
+        // Not: MediasoupService'de "closeProducer" yok, direct producer objesine erişip kapatmamız lazım.
+        // Şimdilik getAllProducers() sadece liste dönüyor.
+        // Hızlı çözüm: MediasoupService'e closeProducer ekleyelim veya burada yönetelim.
+        // Ama servisteki map private.
+        // O yüzden servise bir metod ekleyeceğiz.
+
+        this.mediasoupService.closeProducer(data.producerId);
+
+        return { success: true };
+    }
+
+    /**
      * 5. ADIM: Consume (Başka Birinin Medyasını Al)
      * ---------------------------------------------
      * Client, başka bir kullanıcının producer'ını tüketmek ister.

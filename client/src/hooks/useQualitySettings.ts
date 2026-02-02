@@ -27,60 +27,35 @@ import { types } from 'mediasoup-client';
 
 // Kalite profilleri
 export const QUALITY_PRESETS = {
-    low: {
-        width: 640,
-        height: 360,
-        frameRate: 15,
-        maxBitrate: 150000,  // 150 kbps
-    },
-    medium: {
+    hd60: {
         width: 1280,
         height: 720,
-        frameRate: 30,
-        maxBitrate: 500000,  // 500 kbps
+        frameRate: 60,
+        maxBitrate: 2500000,  // 2.5 Mbps
     },
-    high: {
-        width: 1920,
-        height: 1080,
-        frameRate: 30,
-        maxBitrate: 1500000,  // 1.5 Mbps
-    },
-    ultra: {
+    fhd60: {
         width: 1920,
         height: 1080,
         frameRate: 60,
-        maxBitrate: 3000000,  // 3 Mbps
+        maxBitrate: 5000000,  // 5 Mbps
     },
 } as const;
 
 export type QualityPreset = keyof typeof QUALITY_PRESETS;
 
-// Simulcast katmanları
+// Simulcast katmanları (Kamera için - şimdilik basitleştirildi)
 export const SIMULCAST_ENCODINGS: types.RtpEncodingParameters[] = [
     {
         rid: 'r0',
-        maxBitrate: 100000,
-        scaleResolutionDownBy: 4,  // 1/4 çözünürlük (örn: 1080p -> 270p)
-        scalabilityMode: 'S1T3',
-    },
-    {
-        rid: 'r1',
-        maxBitrate: 300000,
-        scaleResolutionDownBy: 2,  // 1/2 çözünürlük (örn: 1080p -> 540p)
-        scalabilityMode: 'S1T3',
-    },
-    {
-        rid: 'r2',
-        maxBitrate: 900000,
-        // scaleResolutionDownBy: 1 (tam çözünürlük)
+        maxBitrate: 2500000,
         scalabilityMode: 'S1T3',
     },
 ];
 
-// Ekran paylaşımı için özel encodings (text/kod için optimize)
+// Ekran paylaşımı için özel encodings (maç/oyun için optimize - Yüksek Bitrate)
 export const SCREEN_SHARE_ENCODINGS: types.RtpEncodingParameters[] = [
     {
-        maxBitrate: 1500000,  // 1.5 Mbps
+        maxBitrate: 6000000,  // 6 Mbps (1080p 60fps spor/oyun için gerekli)
         // scaleResolutionDownBy yok - tam çözünürlük
     },
 ];
@@ -95,7 +70,7 @@ interface UseQualitySettingsReturn {
 }
 
 export function useQualitySettings(): UseQualitySettingsReturn {
-    const [currentQuality, setCurrentQuality] = useState<QualityPreset>('medium');
+    const [currentQuality, setCurrentQuality] = useState<QualityPreset>('hd60');
 
     /**
      * Kalite presetini ayarla

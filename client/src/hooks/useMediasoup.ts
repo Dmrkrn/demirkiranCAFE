@@ -65,7 +65,8 @@ interface UseMediasoupReturn {
     produceVideo: (track: MediaStreamTrack) => Promise<string | null>;
     produceAudio: (track: MediaStreamTrack) => Promise<string | null>;
     consumeAll: () => Promise<void>;
-    consumeProducer: (producerId: string) => Promise<void>; // <-- YENİ
+    consumeProducer: (producerId: string) => Promise<void>;
+    closeProducer: (producerId: string) => void; // <-- YENİ
     closeAll: () => void;
 }
 
@@ -229,17 +230,24 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
         try {
             console.log('📹 Video producer oluşturuluyor...');
 
+            // VP9 varsa onu kullan, yoksa default (VP8/H264)
+            const codec = deviceRef.current.rtpCapabilities.codecs?.find(c => c.mimeType.toLowerCase() === 'video/vp9')
+                || deviceRef.current.rtpCapabilities.codecs?.[0];
+
             const producer = await sendTransportRef.current.produce({
                 track,
-                // Simulcast ayarları (çoklu kalite)
                 encodings: [
-                    { maxBitrate: 100000, scaleResolutionDownBy: 4 },  // Low: 1/4 çözünürlük
-                    { maxBitrate: 300000, scaleResolutionDownBy: 2 },  // Medium: 1/2 çözünürlük
-                    { maxBitrate: 900000 },                            // High: Tam çözünürlük
+                    {
+                        maxBitrate: 10000000, // 10 Mbps default limit
+                        networkPriority: 'high'
+                    }
                 ],
                 codecOptions: {
-                    videoGoogleStartBitrate: 1000,
+                    videoGoogleStartBitrate: 2000, // 2 Mbps ile başla (hızlı kalite)
+                    videoGoogleMaxBitrate: 12000,  // 12 Mbps max
+                    videoGoogleMinBitrate: 1000,   // 1 Mbps min
                 },
+                codec: codec // VP9 tercihi
             });
 
             setProducers(prev => [...prev, { id: producer.id, kind: 'video', producer }]);
@@ -359,6 +367,22 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
     };
 
     /**
+     * Tek bir producer'ı kapat
+     */
+    const closeProducer = useCallback((producerId: string) => {
+        const producerEntry = producers.find(p => p.id === producerId);
+        if (producerEntry) {
+            producerEntry.producer.close();
+
+            // Sunucuya bildir (ÖNEMLİ: Karşı tarafın consumer'ının kapanması için şart!)
+            request('closeProducer', { producerId }).catch(console.error);
+
+            setProducers(prev => prev.filter(p => p.id !== producerId));
+            console.log('🛑 Producer kapatıldı:', producerId);
+        }
+    }, [producers, request]);
+
+    /**
      * Temizlik: Tüm producer ve consumer'ları kapat
      */
     const closeAll = useCallback(() => {
@@ -388,7 +412,8 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
         produceVideo,
         produceAudio,
         consumeAll,
-        consumeProducer, // <-- YENİ: Tekli consume için dışarı açtık
+        consumeProducer,
+        closeProducer,
         closeAll,
     };
 }
