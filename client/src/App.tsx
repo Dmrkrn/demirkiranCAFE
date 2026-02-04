@@ -46,6 +46,23 @@ function App() {
         timestamp: string;
     }>>([]);
 
+    const [rememberMe, setRememberMe] = useState(false); // Yeni Remember Me state
+
+    // Mount anında localStorage'dan verileri çek
+    useEffect(() => {
+        const savedUsername = localStorage.getItem('savedUsername');
+        const savedRoomPassword = localStorage.getItem('savedRoomPassword');
+
+        if (savedUsername) {
+            setUsername(savedUsername);
+            setRememberMe(true);
+        }
+
+        if (savedRoomPassword) {
+            setRoomPassword(savedRoomPassword);
+        }
+    }, []);
+
     // Kullanıcı Ses Seviyeleri (0-100)
     const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
     // Aktif Hoparlör ID
@@ -475,6 +492,17 @@ function App() {
             setJoiningStatus('joined');
             console.log('✅ Odaya başarıyla katıldın!');
 
+            // Remember Me Logic
+            if (rememberMe) {
+                localStorage.setItem('savedUsername', username);
+                if (passwordToUse) {
+                    localStorage.setItem('savedRoomPassword', passwordToUse);
+                }
+            } else {
+                localStorage.removeItem('savedUsername');
+                localStorage.removeItem('savedRoomPassword');
+            }
+
             // Mevcut kullanıcıları getir
             fetchPeers();
 
@@ -785,6 +813,18 @@ function App() {
                                             {loginError}
                                         </div>
                                     )}
+
+                                    <div className="remember-me-container">
+                                        <label className="remember-me-label">
+                                            <input
+                                                type="checkbox"
+                                                className="remember-me-checkbox"
+                                                checked={rememberMe}
+                                                onChange={(e) => setRememberMe(e.target.checked)}
+                                            />
+                                            Beni Hatırla
+                                        </label>
+                                    </div>
 
                                     <button
                                         onClick={() => handleJoinRoom()}

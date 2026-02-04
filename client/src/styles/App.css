@@ -293,9 +293,29 @@
     box-shadow: 0 4px 12px rgba(233, 69, 96, 0.4);
 }
 
-.connect-button:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
+/* Remember Me Checkbox */
+.remember-me-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: var(--spacing-md);
+    padding: 0 var(--spacing-xs);
+}
+
+.remember-me-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    cursor: pointer;
+    user-select: none;
+}
+
+.remember-me-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
 }
 
 /* ============================================
