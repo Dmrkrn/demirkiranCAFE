@@ -7,6 +7,7 @@ interface SettingsPanelProps {
     onMicChange?: (deviceId: string) => void;
     onSpeakerChange?: (deviceId: string) => void;
     onCameraChange?: (deviceId: string) => void;
+    onThresholdChange?: (threshold: number) => void;
 }
 
 interface MediaDeviceInfo {
@@ -63,7 +64,7 @@ const formatKeyCode = (code: string): string => {
     return code;
 };
 
-export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onMicChange, onSpeakerChange, onCameraChange }) => {
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, onMicChange, onSpeakerChange, onCameraChange, onThresholdChange }) => {
     const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
     const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
     const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
@@ -420,6 +421,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
                                     const val = Number(e.target.value);
                                     setMicThreshold(val);
                                     localStorage.setItem('demirkiran-mic-threshold', String(val));
+                                    onThresholdChange?.(val);
                                 }}
                                 className="volume-slider threshold-slider"
                             />

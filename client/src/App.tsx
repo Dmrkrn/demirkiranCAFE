@@ -9,7 +9,9 @@ import { TitleBar } from './components/TitleBar';
 import { PingMeter } from './components/PingMeter';
 import { SettingsPanel, loadKeybinds } from './components/SettingsPanel';
 import UpdateNotifier from './components/UpdateNotifier';
-import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound, playJoinSound } from './utils/sounds';
+import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound, playJoinSound, playLeaveSound } from './utils/sounds';
+import EmojiPicker, { EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-react';
+import { LinkifiedText } from './components/LinkifiedText';
 import { MicIcon, MicOffIcon, HeadphonessIcon, HeadphonesOffIcon, VideoIcon } from './components/Icons';
 import { mapDomCodeToUiohook } from './utils/keymapping';
 import './styles/App.css';
@@ -34,6 +36,7 @@ function App() {
     const [showSettings, setShowSettings] = useState(false);
     const [showScreenPicker, setShowScreenPicker] = useState(false);
     const [isDeafened, setIsDeafened] = useState(false); // Restore isDeafened
+    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
     const [chatMessages, setChatMessages] = useState<Array<{
         id: string;
         senderId: string;
@@ -112,8 +115,64 @@ function App() {
         stopScreenShare,
     } = useScreenShare();
 
-    // VAD (Voice Activity Detection)
-    const { isSpeaking } = useVoiceActivity({ stream: localStream });
+    // VAD (Voice Activity Detection) - Eşik değeri localStorage'dan
+    const [micThreshold, setMicThreshold] = useState(() => {
+        const saved = localStorage.getItem('demirkiran-mic-threshold');
+        return saved ? Number(saved) : 10;
+    });
+
+    // VAD için Stream Cloning (Deadlock'ı önlemek için)
+    // Ana stream mute olduğunda VAD çalışmaya devam etmeli
+    const [vadStream, setVadStream] = useState<MediaStream | null>(null);
+
+    useEffect(() => {
+        if (localStream) {
+            try {
+                // Sadece Audio track'i kopyala
+                const audioTrack = localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    const clonedStream = localStream.clone();
+                    setVadStream(clonedStream);
+                    console.log('🎤 VAD Stream oluşturuldu (Cloned)');
+                }
+            } catch (e) {
+                console.error('VAD Stream kopyalanamadı:', e);
+            }
+        } else {
+            setVadStream(null);
+        }
+    }, [localStream]);
+
+    const { isSpeaking: vadIsSpeaking } = useVoiceActivity({
+        stream: vadStream, // Clone kullan ki ana track mute olunca VAD ölmesin
+        threshold: micThreshold
+    });
+
+    // UI ve Noise Gate için mantık:
+    // UI (Yeşil ışık): Sadece mikrofon AÇIKSA ve konuşuyorsa yanmalı.
+    const isSpeaking = vadIsSpeaking && audioEnabled;
+
+    // Ses Kontrolü (GÜRÜLTÜ KAPISI / NOISE GATE)
+    // isSpeaking ve manual mute durumuna göre ana yayını aç/kapat
+    useEffect(() => {
+        if (!localStream) return;
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (!audioTrack) return;
+
+        // Kullanıcı manuel olarak sesi açtıysa (audioEnabled = true)
+        // VAD devreye girer: Konuşuyorsa aç, susuyorsa kapat.
+        if (audioEnabled) {
+            const shouldEnable = vadIsSpeaking; // Burada raw VAD sinyalini kullanıyoruz
+            if (audioTrack.enabled !== shouldEnable) {
+                audioTrack.enabled = shouldEnable;
+            }
+        } else {
+            // Kullanıcı manuel kapattıysa, her zaman kapalı kalmalı
+            if (audioTrack.enabled) {
+                audioTrack.enabled = false;
+            }
+        }
+    }, [localStream, audioEnabled, vadIsSpeaking]);
 
     // Kalite Ayırları
     const { currentQuality, setQuality } = useQualitySettings();
@@ -268,6 +327,11 @@ function App() {
             }
         };
 
+        const handlePeerLeft = (data: { peerId: string }) => {
+            console.log('👋 Bir kullanıcı ayrıldı, ses çalınıyor...');
+            playLeaveSound();
+        };
+
         const handleNewProducer = async (data: { producerId: string; peerId: string; kind: string; appData?: { isScreen?: boolean } }) => {
             console.log('🆕 Yeni producer algılandı:', data.producerId, 'from', data.peerId, 'isScreen:', data.appData?.isScreen);
             try {
@@ -292,6 +356,7 @@ function App() {
         };
 
         socket.on('peer-joined', handlePeerJoined);
+        socket.on('peer-left', handlePeerLeft);
         socket.on('new-producer', handleNewProducer);
 
         // Producer kapandığında (Ekran paylaşımı durduğunda)
@@ -305,6 +370,7 @@ function App() {
 
         return () => {
             socket.off('peer-joined', handlePeerJoined);
+            socket.off('peer-left', handlePeerLeft);
             socket.off('new-producer', handleNewProducer);
         };
     }, [socket, clientId, isJoined, consumeProducer]);
@@ -959,7 +1025,9 @@ function App() {
                                                             <Avatar name={msg.senderName} size="sm" />
                                                             <div className="msg-content">
                                                                 <span className="msg-sender">{msg.senderName}</span>
-                                                                <div className="msg-bubble">{msg.message}</div>
+                                                                <div className="msg-bubble">
+                                                                    <LinkifiedText text={msg.message} />
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
@@ -967,20 +1035,57 @@ function App() {
                                             )}
                                             <div ref={chatEndRef} />
                                         </div>
-                                        <form className="chat-input-integrated" onSubmit={(e) => {
+                                        <form className="chat-input-integrated" style={{ position: 'relative' }} onSubmit={(e) => {
                                             e.preventDefault();
                                             const input = e.currentTarget.querySelector('input') as HTMLInputElement;
                                             if (input.value.trim()) {
                                                 handleSendMessage(input.value.trim());
                                                 input.value = '';
+                                                setShowEmojiPicker(false);
                                             }
                                         }}>
+                                            {showEmojiPicker && (
+                                                <div style={{ position: 'absolute', bottom: '110%', left: '0', width: '100%', zIndex: 1000 }}>
+                                                    <EmojiPicker
+                                                        theme={Theme.DARK}
+                                                        emojiStyle={EmojiStyle.NATIVE}
+                                                        width="100%"
+                                                        height={300}
+                                                        previewConfig={{ showPreview: false }}
+                                                        onEmojiClick={(emojiData: EmojiClickData) => {
+                                                            const input = document.querySelector('.chat-input-integrated input') as HTMLInputElement;
+                                                            if (input) {
+                                                                const start = input.selectionStart || 0;
+                                                                const end = input.selectionEnd || 0;
+                                                                const text = input.value;
+                                                                const before = text.substring(0, start);
+                                                                const after = text.substring(end);
+                                                                input.value = before + emojiData.emoji + after;
+                                                                const newCursorPos = start + emojiData.emoji.length;
+                                                                input.setSelectionRange(newCursorPos, newCursorPos);
+                                                                input.focus();
+                                                            }
+                                                        }}
+                                                    />
+                                                </div>
+                                            )}
+
+                                            <button
+                                                type="button"
+                                                className="emoji-button"
+                                                onClick={() => setShowEmojiPicker(!showEmojiPicker)}
+                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px', flexShrink: 0 }}
+                                            >
+                                                🐷
+                                            </button>
+
                                             <input
                                                 type="text"
                                                 placeholder="Mesaj yaz..."
                                                 maxLength={500}
+                                                onClick={() => setShowEmojiPicker(false)}
                                             />
-                                            <button type="submit">➤</button>
+                                            <button type="submit" style={{ flexShrink: 0 }}>➤</button>
                                         </form>
                                     </div>
                                 </div>
@@ -1040,6 +1145,7 @@ function App() {
                 onMicChange={changeAudioInput}
                 onSpeakerChange={setActiveSpeakerId}
                 onCameraChange={changeVideoInput}
+                onThresholdChange={(val) => setMicThreshold(val)}
             />
         </div>
     );

@@ -779,7 +779,9 @@
     display: flex;
     gap: var(--spacing-sm);
     padding: var(--spacing-md);
+    /* Reduced horizontal padding */
     border-top: 1px solid rgba(255, 255, 255, 0.05);
+    align-items: center;
 }
 
 .chat-input-integrated input {
@@ -797,11 +799,105 @@
     color: var(--text-muted);
 }
 
+/* Emoji Picker Customization */
+/* Emoji Picker Customization - NUCLEAR FIX */
+.EmojiPickerReact {
+    --epr-bg-color: #1e1e24 !important;
+    --epr-category-label-bg-color: #1e1e24 !important;
+    --epr-text-color: #ffffff !important;
+    --epr-picker-border-color: #2b2b30 !important;
+    --epr-hover-bg-color: #2b2b30 !important;
+    --epr-focus-bg-color: #2b2b30 !important;
+    --epr-search-input-bg-color: #2b2b30 !important;
+    --epr-icon-color: #a0a0a0 !important;
+    --epr-emoji-size: 22px !important;
+    --epr-emoji-gap: 8px !important;
+    /* increased gap */
+
+    border-radius: 8px !important;
+    box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.5) !important;
+    font-family: var(--font-family) !important;
+}
+
+/* NUCLEAR: Force transparent background on EVERYTHING that might look like a button */
+.EmojiPickerReact button,
+.EmojiPickerReact .epr-btn,
+.EmojiPickerReact .epr-cat-btn,
+.EmojiPickerReact .epr-emoji,
+.EmojiPickerReact div[role="button"],
+.EmojiPickerReact li,
+.EmojiPickerReact span {
+    background: none !important;
+    /* Clears colors AND gradients */
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+/* Category Navigation - HIDE to save space and remove "empty" look */
+.EmojiPickerReact .epr-category-nav {
+    display: none !important;
+}
+
+/* Re-apply hover states carefully */
+.EmojiPickerReact .epr-cat-btn:focus,
+.EmojiPickerReact .epr-cat-btn:hover,
+.EmojiPickerReact .epr-cat-btn[aria-selected="true"] {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 4px;
+}
+
+.EmojiPickerReact .epr-emoji:hover {
+    background-color: rgba(255, 255, 255, 0.1) !important;
+    border-radius: 4px;
+}
+
+.EmojiPickerReact .epr-search-container button {
+    background-color: transparent !important;
+}
+
+/* Search input styling - Extra Padding */
+.EmojiPickerReact .epr-search-container input {
+    background-color: #2b2b30 !important;
+    border-radius: 8px !important;
+    padding-left: 45px !important;
+    /* Increased from 35px */
+    height: 36px !important;
+    color: white !important;
+}
+
+/* Category labels */
+.EmojiPickerReact .epr-emoji-category-label {
+    background-color: #1e1e24 !important;
+    color: #a0a0a0 !important;
+    font-size: 12px !important;
+    padding: 8px 10px !important;
+}
+
+.EmojiPickerReact .epr-emoji-category-content {
+    margin-top: 5px !important;
+}
+
+.EmojiPickerReact .epr-skin-tones {
+    display: none !important;
+}
+
+.EmojiPickerReact ::-webkit-scrollbar {
+    width: 6px !important;
+    background: transparent !important;
+}
+
+.EmojiPickerReact ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border-radius: 10px !important;
+}
+
 .chat-input-integrated input:focus {
     border-color: var(--accent);
 }
 
-.chat-input-integrated button {
+/* Fix: Only target the submit button for the red styling, NOT the emoji picker buttons */
+.chat-input-integrated button[type="submit"] {
     background: linear-gradient(135deg, var(--accent) 0%, #ff6b6b 100%);
     border: none;
     border-radius: var(--radius-md);
@@ -810,6 +906,18 @@
     font-size: var(--font-size-base);
     cursor: pointer;
     transition: all var(--transition-fast);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-input-integrated button[type="submit"]:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(233, 69, 96, 0.3);
+}
+
+.chat-input-integrated button[type="submit"]:active {
+    transform: translateY(0);
 }
 
 .chat-input-integrated button:hover {

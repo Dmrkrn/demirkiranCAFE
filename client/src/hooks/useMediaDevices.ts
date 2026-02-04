@@ -242,7 +242,14 @@ export function useMediaDevices(): UseMediaDevicesReturn {
 
             // Start new with specific device
             await startMedia({
-                audio: { deviceId: { exact: deviceId } },
+                audio: {
+                    deviceId: { exact: deviceId },
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    sampleRate: 48000,
+                    channelCount: 2
+                },
                 video: videoEnabled // Keep video state
             });
         },

@@ -39,7 +39,7 @@ interface UseVoiceActivityReturn {
 export function useVoiceActivity({
     stream,
     threshold = 10,              // Daha hassas (Fısıltıyı bile algılar)
-    smoothingTimeConstant = 0.1, // Çok hızlı tepki (Gecikme yok)
+    smoothingTimeConstant = 0.02, // Çok daha hızlı tepki (Kelimelerin başını yutmaması için)
 }: UseVoiceActivityProps): UseVoiceActivityReturn {
     const [isSpeaking, setIsSpeaking] = useState(false);
     const [volume, setVolume] = useState(0);
@@ -73,17 +73,30 @@ export function useVoiceActivity({
 
             // Analiz fonksiyonu - closure'da analyser'ı yakala
             const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            let lastSpeechTime = 0;
+            const HOLD_TIME = 500; // 500ms hold time
+
             const analyze = () => {
                 analyser.getByteFrequencyData(dataArray);
                 const average = dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
                 const normalizedVolume = Math.min(100, Math.round((average / 255) * 100));
                 setVolume(normalizedVolume);
-                setIsSpeaking(average > threshold);
+
+                const now = Date.now();
+                if (average > threshold) {
+                    setIsSpeaking(true);
+                    lastSpeechTime = now;
+                } else {
+                    // Sessizlik süresi HOLD_TIME'ı geçtiyse kapat
+                    if (now - lastSpeechTime > HOLD_TIME) {
+                        setIsSpeaking(false);
+                    }
+                }
             };
 
-            // Analizi setInterval ile başlat (Electron için daha tutarlı)
-            // 50ms = ~20 fps ses analizi
-            intervalRef.current = setInterval(analyze, 50);
+            // Analizi setInterval ile başlat
+            // 20ms = 50 fps (Daha sık kontrol, daha hızlı açılış)
+            intervalRef.current = setInterval(analyze, 20);
 
             console.log('🎤 VAD başlatıldı');
         } catch (error) {

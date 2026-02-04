@@ -55,3 +55,9 @@ export const playJoinSound = () => {
     setTimeout(() => playBeep(523, 0.1, 0.15), 100);
     setTimeout(() => playBeep(659, 0.15, 0.15), 200);
 };
+
+// Leave sound (descending chirp)
+export const playLeaveSound = () => {
+    playBeep(600, 0.1, 0.2);
+    setTimeout(() => playBeep(450, 0.1, 0.15), 100);
+};

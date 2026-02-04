@@ -82,14 +82,18 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     handleDisconnect(client: Socket) {
         this.logger.log(`🔌 Client ayrıldı: ${client.id}`);
 
+        // RommId bilgisini al (silmeden önce)
+        const clientInfo = this.clients.get(client.id);
+        const roomId = (clientInfo as any)?.roomId || 'main'; // Fallback
+
         // Mediasoup kaynaklarını temizle
         this.mediasoupService.cleanupClient(client.id);
 
         // Client bilgilerini sil
         this.clients.delete(client.id);
 
-        // Diğer client'lara haber ver
-        this.server.emit('peer-left', { peerId: client.id });
+        // Diğer client'lara haber ver (Sadece o odadakilere)
+        this.server.to(roomId).emit('peer-left', { peerId: client.id });
     }
 
     /**
@@ -409,11 +413,11 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
 
             this.logger.log(`👤 Kullanıcı katıldı: ${client.id} -> ${data.username} @ ${roomId}`);
 
-            // Diğer client'lara haber ver (Global duyuru - herkes görsün)
-            client.broadcast.emit('peer-joined', {
+            // Diğer client'lara haber ver (Sadece o odadakiler duysun/görsün)
+            client.to(roomId).emit('peer-joined', {
                 peerId: client.id,
                 username: data.username,
-                roomId: roomId // Frontend bunu kullanıp gruplayabilir
+                roomId: roomId
             });
         }
         return { success: true };
