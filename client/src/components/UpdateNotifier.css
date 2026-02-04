@@ -25,7 +25,8 @@
 .update-content {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
+    /* Centered as requested */
     gap: 15px;
 }
 

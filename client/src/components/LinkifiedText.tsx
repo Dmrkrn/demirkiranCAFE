@@ -27,7 +27,9 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text }) => {
                             href={href}
                             target="_blank"
                             rel="noopener noreferrer"
-                            style={{ color: '#4da6ff', textDecoration: 'underline' }}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="chat-link"
                             onClick={(e) => e.stopPropagation()}
                         >
                             {part}

@@ -771,8 +771,35 @@
 }
 
 .chat-msg.own .msg-bubble {
-    background: linear-gradient(135deg, var(--accent) 0%, #ff6b6b 100%);
+    background-color: var(--bg-secondary);
+    /* border: 1px solid var(--accent); <- REMOVED per user request */
     color: white;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Compact Grouping */
+.chat-msg.same-sender {
+    margin-top: 2px !important;
+}
+
+.chat-msg {
+    margin-top: 10px;
+    /* Default spacing between different senders */
+}
+
+.chat-link {
+    color: #4da6ff;
+    text-decoration: underline;
+    transition: opacity 0.2s;
+}
+
+.chat-link:hover {
+    opacity: 0.8;
+}
+
+/* Ensure links in own messages are readable (light blue on dark bg is fine, but just in case) */
+.chat-msg.own .chat-link {
+    color: #60a5fa;
 }
 
 .chat-input-integrated {

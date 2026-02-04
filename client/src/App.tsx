@@ -14,6 +14,7 @@ import EmojiPicker, { EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-rea
 import { LinkifiedText } from './components/LinkifiedText';
 import { MicIcon, MicOffIcon, HeadphonessIcon, HeadphonesOffIcon, VideoIcon } from './components/Icons';
 import { mapDomCodeToUiohook } from './utils/keymapping';
+import { getUserColor } from './utils/colors'; // Import color utility
 import './styles/App.css';
 
 /**
@@ -1015,17 +1016,51 @@ function App() {
                                                     <p>Henüz mesaj yok</p>
                                                 </div>
                                             ) : (
-                                                chatMessages.map((msg) => {
+                                                chatMessages.map((msg, index) => {
                                                     const isOwnMessage = msg.senderId === clientId;
+                                                    const userColor = getUserColor(msg.senderName || msg.senderId);
+
+                                                    // Check if previous message was from same sender
+                                                    const previousMsg = index > 0 ? chatMessages[index - 1] : null;
+                                                    const isSameSender = previousMsg?.senderId === msg.senderId;
+
                                                     return (
                                                         <div
                                                             key={msg.id}
-                                                            className={`chat-msg ${isOwnMessage ? 'own' : ''}`}
+                                                            className={`chat-msg ${isOwnMessage ? 'own' : ''} ${isSameSender ? 'same-sender' : ''}`}
                                                         >
-                                                            <Avatar name={msg.senderName} size="sm" />
+                                                            {/* Avatar: Visibility hidden if same sender to keep alignment */}
+                                                            <div className="avatar-wrapper" style={{
+                                                                visibility: isSameSender ? 'hidden' : 'visible',
+                                                                width: '24px', // Match Avatar 'sm' size exactly
+                                                                height: '24px',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                                flexShrink: 0
+                                                            }}>
+                                                                {!isSameSender && <Avatar name={msg.senderName} size="sm" />}
+                                                            </div>
+
                                                             <div className="msg-content">
-                                                                <span className="msg-sender">{msg.senderName}</span>
-                                                                <div className="msg-bubble">
+                                                                {/* Isim: Grubun ilk mesajındaysa HERKES için göster */}
+                                                                {!isSameSender && (
+                                                                    <span className="msg-sender" style={{ color: isOwnMessage ? 'var(--success)' : userColor }}>
+                                                                        {msg.senderName}
+                                                                    </span>
+                                                                )}
+
+
+                                                                <div
+                                                                    className="msg-bubble"
+                                                                    style={{
+                                                                        // Çerçeveyi kaldırdık (Kullanıcı isteği)
+                                                                        // Sadece hafif bir sol çizgi ekleyebiliriz belki renk belli olsun diye?
+                                                                        // Kullanıcı "çerçeveyi direkt kaldıralım" dedi.
+                                                                        borderLeft: !isOwnMessage ? `3px solid ${userColor}` : 'none',
+                                                                        borderRight: isOwnMessage ? `3px solid ${userColor}` : 'none'
+                                                                    }}
+                                                                >
                                                                     <LinkifiedText text={msg.message} />
                                                                 </div>
                                                             </div>
