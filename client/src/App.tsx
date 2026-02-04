@@ -12,7 +12,7 @@ import UpdateNotifier from './components/UpdateNotifier';
 import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound, playJoinSound, playLeaveSound } from './utils/sounds';
 import EmojiPicker, { EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-react';
 import { LinkifiedText } from './components/LinkifiedText';
-import { MicIcon, MicOffIcon, HeadphonessIcon, HeadphonesOffIcon, VideoIcon } from './components/Icons';
+import { MicIcon, MicOffIcon, HeadphonessIcon, HeadphonesOffIcon, VideoIcon, PaperclipIcon } from './components/Icons';
 import { mapDomCodeToUiohook } from './utils/keymapping';
 import { getUserColor } from './utils/colors'; // Import color utility
 import './styles/App.css';
@@ -43,6 +43,7 @@ function App() {
         senderId: string;
         senderName: string;
         message: string;
+        file?: { name: string; type: string; data: string }; // File payload
         timestamp: string;
     }>>([]);
 
@@ -412,6 +413,7 @@ function App() {
             }
             seenMessageIds.current.add(msg.id);
 
+            console.log('📨 Yeni mesaj:', msg); // Debug log for file payload
             setChatMessages((prev) => [...prev, msg]);
             playUnmuteSound();
         });
@@ -426,6 +428,65 @@ function App() {
     /**
      * Mesaj gönder
      */
+    /**
+     * Dosya Seçimi ve Gönderimi
+     */
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDragging, setIsDragging] = useState(false); // Dragging state
+
+    const processFile = (file: File) => {
+        // Boyut kontrolü (5MB)
+        if (file.size > 5 * 1024 * 1024) {
+            alert('Dosya boyutu 5MB\'dan büyük olamaz!');
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = () => {
+            const base64 = reader.result as string;
+            emit('chat-message', {
+                message: '',
+                file: {
+                    name: file.name,
+                    type: file.type,
+                    data: base64
+                }
+            });
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        processFile(file);
+
+        // Input'u temizle
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
+
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        // Sadece ana container'dan çıkınca false yap
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setIsDragging(false);
+    };
+
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+            processFile(file);
+        }
+    };
+
     const handleSendMessage = (message: string) => {
         emit('chat-message', { message });
     };
@@ -1045,7 +1106,34 @@ function App() {
                                     </div>
 
                                     {/* Sağ: Chat Panel */}
-                                    <div className="chat-section">
+                                    <div
+                                        className="chat-section"
+                                        onDragOver={handleDragOver}
+                                        onDragLeave={handleDragLeave}
+                                        onDrop={handleDrop}
+                                        style={{ position: 'relative' }} // Overlay için
+                                    >
+                                        {isDragging && (
+                                            <div className="drag-overlay" style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                right: 0,
+                                                bottom: 0,
+                                                backgroundColor: 'rgba(0,0,0,0.8)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                zIndex: 1001,
+                                                color: '#fff',
+                                                fontSize: '1.2rem',
+                                                border: '2px dashed var(--accent)',
+                                                borderRadius: 'var(--radius-lg)',
+                                                backdropFilter: 'blur(2px)'
+                                            }}>
+                                                📂 Dosyayı Buraya Bırak
+                                            </div>
+                                        )}
                                         <div className="chat-header-integrated">
                                             <h3>💬 Sohbet</h3>
                                         </div>
@@ -1102,6 +1190,26 @@ function App() {
                                                                     }}
                                                                 >
                                                                     <LinkifiedText text={msg.message} />
+                                                                    {msg.file && (
+                                                                        <div className="chat-file-attachment" style={{ marginTop: '5px' }}>
+                                                                            {msg.file.type.startsWith('image/') ? (
+                                                                                <img
+                                                                                    src={msg.file.data}
+                                                                                    alt={msg.file.name}
+                                                                                    style={{ maxWidth: '100%', borderRadius: '4px', cursor: 'pointer' }}
+                                                                                    onClick={() => {
+                                                                                        const w = window.open("");
+                                                                                        w?.document.write('<img src="' + msg.file?.data + '" style="max-width:100%;"/>');
+                                                                                    }}
+                                                                                />
+                                                                            ) : (
+                                                                                <a href={msg.file.data} download={msg.file.name} className="file-download-link" style={{ display: 'flex', alignItems: 'center', gap: '5px', color: 'var(--accent)', textDecoration: 'none' }}>
+                                                                                    <PaperclipIcon size={16} />
+                                                                                    {msg.file.name}
+                                                                                </a>
+                                                                            )}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -1112,8 +1220,8 @@ function App() {
                                         </div>
                                         <form className="chat-input-integrated" style={{ position: 'relative' }} onSubmit={(e) => {
                                             e.preventDefault();
-                                            const input = e.currentTarget.querySelector('input') as HTMLInputElement;
-                                            if (input.value.trim()) {
+                                            const input = e.currentTarget.querySelector('input[type="text"]') as HTMLInputElement;
+                                            if (input && input.value.trim()) {
                                                 handleSendMessage(input.value.trim());
                                                 input.value = '';
                                                 setShowEmojiPicker(false);
@@ -1128,7 +1236,7 @@ function App() {
                                                         height={300}
                                                         previewConfig={{ showPreview: false }}
                                                         onEmojiClick={(emojiData: EmojiClickData) => {
-                                                            const input = document.querySelector('.chat-input-integrated input') as HTMLInputElement;
+                                                            const input = document.querySelector('.chat-input-integrated input[type="text"]') as HTMLInputElement;
                                                             if (input) {
                                                                 const start = input.selectionStart || 0;
                                                                 const end = input.selectionEnd || 0;
@@ -1145,11 +1253,27 @@ function App() {
                                                 </div>
                                             )}
 
+                                            <input
+                                                type="file"
+                                                ref={fileInputRef}
+                                                style={{ display: 'none' }}
+                                                onChange={handleFileSelect}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="emoji-button"
+                                                onClick={() => fileInputRef.current?.click()}
+                                                title="Dosya Gönder"
+                                                style={{ height: '40px', width: '30px', marginRight: '2px' }}
+                                            >
+                                                <PaperclipIcon size={20} />
+                                            </button>
+
                                             <button
                                                 type="button"
                                                 className="emoji-button"
                                                 onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                                                style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', padding: '0 5px', flexShrink: 0 }}
+                                                style={{ height: '40px', width: '30px', fontSize: '1.2rem', padding: '0', flexShrink: 0, marginRight: '6px' }}
                                             >
                                                 🐷
                                             </button>
@@ -1159,8 +1283,9 @@ function App() {
                                                 placeholder="Mesaj yaz..."
                                                 maxLength={500}
                                                 onClick={() => setShowEmojiPicker(false)}
+                                                style={{ height: '40px' }}
                                             />
-                                            <button type="submit" style={{ flexShrink: 0 }}>➤</button>
+                                            <button type="submit" style={{ flexShrink: 0, height: '40px', width: '40px' }}>➤</button>
                                         </form>
                                     </div>
                                 </div>

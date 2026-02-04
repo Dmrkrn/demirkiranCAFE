@@ -1,12 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { SocketIoAdapter } from './adapters/socket-io.adapter';
 
 async function bootstrap() {
   try {
     console.log('🚀 Backend başlatılıyor...');
     const app = await NestFactory.create(AppModule);
 
-    // CORS ayarları (Electron client için gerekli)
+    // Custom Socket.io Adapter'ı kullan (Payload limiti için şart)
+    app.useWebSocketAdapter(new SocketIoAdapter(app));
+
+    // CORS ayarları (HTTP için)
     app.enableCors({
       origin: '*',
       credentials: true,

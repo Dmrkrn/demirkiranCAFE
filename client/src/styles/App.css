@@ -702,8 +702,8 @@
 }
 
 .chat-section {
-    width: 320px;
-    min-width: 280px;
+    width: 400px;
+    min-width: 320px;
     height: 100%;
     max-height: calc(100vh - 200px);
     background-color: var(--bg-secondary);
@@ -824,7 +824,7 @@
 
 .chat-input-integrated {
     display: flex;
-    gap: var(--spacing-sm);
+    gap: 4px;
     padding: var(--spacing-md);
     /* Reduced horizontal padding */
     border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -847,6 +847,23 @@
 }
 
 /* Emoji Picker Customization */
+.emoji-button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-muted);
+    transition: color 0.2s;
+}
+
+.emoji-button:hover {
+    color: var(--text-primary);
+    transform: scale(1.1);
+}
+
 /* Emoji Picker Customization - NUCLEAR FIX */
 .EmojiPickerReact {
     --epr-bg-color: #1e1e24 !important;

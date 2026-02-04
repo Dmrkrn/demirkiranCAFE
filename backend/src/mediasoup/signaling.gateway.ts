@@ -34,6 +34,7 @@ import { ConfigService } from '@nestjs/config';
     cors: {
         origin: '*', // Production'da kısıtla!
     },
+    maxHttpBufferSize: 1e8 // 100MB (Dosya yükleme için)
 })
 export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @WebSocketServer()
@@ -429,13 +430,20 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('chat-message')
     handleChatMessage(
         @ConnectedSocket() client: Socket,
-        @MessageBody() data: { message: string },
+        @MessageBody() data: { message: string; file?: { name: string; type: string; data: string } },
     ) {
         const clientInfo = this.clients.get(client.id);
         const username = clientInfo?.username || 'Anonim';
         const roomId = (clientInfo as any).roomId || 'main';
 
-        this.logger.log(`💬 Mesaj (${roomId}): ${username}: ${data.message}`);
+        this.logger.log(`💬 Mesaj İsteği Geldi (${roomId}): ${username}`);
+
+        if (data.file) {
+            const sizeInBytes = Buffer.from(data.file.data).length;
+            this.logger.log(`📂 Dosya Tespit Edildi: ${data.file.name} (${data.file.type}) - Boyut: ${Math.round(sizeInBytes / 1024)} KB`);
+        } else {
+            this.logger.log(`📝 Metin Mesajı: ${data.message}`);
+        }
 
         // Sadece o odadakilere gönder
         this.server.to(roomId).emit('chat-message', {
@@ -443,6 +451,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             senderId: client.id,
             senderName: username,
             message: data.message,
+            file: data.file, // Dosyayı olduğu gibi ilet
             timestamp: new Date().toISOString(),
         });
 
