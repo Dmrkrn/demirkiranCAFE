@@ -435,9 +435,9 @@ function App() {
     const [isDragging, setIsDragging] = useState(false); // Dragging state
 
     const processFile = (file: File) => {
-        // Boyut kontrolü (5MB)
-        if (file.size > 5 * 1024 * 1024) {
-            alert('Dosya boyutu 5MB\'dan büyük olamaz!');
+        // Boyut kontrolü (100MB)
+        if (file.size > 100 * 1024 * 1024) {
+            alert('Dosya boyutu 100MB\'dan büyük olamaz!');
             return;
         }
 

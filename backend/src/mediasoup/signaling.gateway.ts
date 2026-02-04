@@ -436,14 +436,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         const username = clientInfo?.username || 'Anonim';
         const roomId = (clientInfo as any).roomId || 'main';
 
-        this.logger.log(`💬 Mesaj İsteği Geldi (${roomId}): ${username}`);
-
-        if (data.file) {
-            const sizeInBytes = Buffer.from(data.file.data).length;
-            this.logger.log(`📂 Dosya Tespit Edildi: ${data.file.name} (${data.file.type}) - Boyut: ${Math.round(sizeInBytes / 1024)} KB`);
-        } else {
-            this.logger.log(`📝 Metin Mesajı: ${data.message}`);
-        }
+        this.logger.log(`💬 Mesaj (${roomId}): ${username}: ${data.message} ${data.file ? '[DOSYA]' : ''}`);
 
         // Sadece o odadakilere gönder
         this.server.to(roomId).emit('chat-message', {
