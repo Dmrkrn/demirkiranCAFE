@@ -94,28 +94,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
     const [keybinds, setKeybinds] = useState<Keybinds>(loadKeybinds);
     const [recordingKey, setRecordingKey] = useState<'toggleMic' | 'toggleSpeaker' | null>(null);
 
-    // Advanced Settings
-    const [drmBypass, setDrmBypass] = useState(false);
 
-    // Load initial settings
-    useEffect(() => {
-        const loadSettings = async () => {
-            if (window.electronAPI?.getSettings) {
-                const settings = await window.electronAPI.getSettings();
-                if (settings && typeof settings.drmBypass === 'boolean') {
-                    setDrmBypass(settings.drmBypass);
-                }
-            }
-        };
-        loadSettings();
-    }, []);
-
-    const toggleDrmBypass = (enabled: boolean) => {
-        setDrmBypass(enabled);
-        if (window.electronAPI?.saveSettings) {
-            window.electronAPI.saveSettings({ drmBypass: enabled });
-        }
-    };
 
     // Keybind kaydetme
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -509,27 +488,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
                         </div>
                     </div>
 
-                    {/* Gelişmiş Ayarlar */}
-                    <div className="settings-section">
-                        <h3>⚙️ Gelişmiş Ayarlar</h3>
-                        <div className="settings-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <div>
-                                <div style={{ fontWeight: 600 }}>DRM Bypass Modu</div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                    TOD, Netflix gibi platformlardaki siyah ekran sorununu aşmak için donanım hızlandırmayı kapatır. (Yeniden başlatma gerektirir)
-                                </div>
-                            </div>
-                            <input
-                                type="checkbox"
-                                checked={drmBypass}
-                                onChange={(e) => toggleDrmBypass(e.target.checked)}
-                                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                            />
-                        </div>
-                    </div>
+
 
                     <div className="settings-footer-info" style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem', opacity: 0.5 }}>
-                        DemirkıranCAFE v1.0.6 • Made with ❤️
+                        DemirkıranCAFE v1.0.6 • <span
+                            onClick={() => window.electronAPI?.openExternal('https://cagridemirkiran.com')}
+                            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+                        >
+                            Developed by Çağrı Demirkıran
+                        </span>
                     </div>
                 </div>
 

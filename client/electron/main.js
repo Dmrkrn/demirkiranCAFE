@@ -1,20 +1,3 @@
-/**
- * Electron Ana Süreci (Main Process)
- * ==================================
- * 
- * Electron'da iki tür süreç vardır:
- * 
- * 1. **Main Process (Bu Dosya)**:
- *    - Node.js ortamında çalışır
- *    - Pencere oluşturma, sistem olayları
- *    - Dosya sistemi erişimi
- * 
- * 2. **Renderer Process (React App)**:
- *    - Chromium tarayıcısında çalışır
- *    - UI (HTML/CSS/JS)
- *    - Güvenlik nedeniyle sistem erişimi kısıtlı
- */
-
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
@@ -25,58 +8,16 @@ log.transports.file.level = 'info';
 autoUpdater.logger = log;
 log.info('App starting...');
 
-// DRM Bypass / Donanım Hızlandırma Kontrolü
-// ==========================================
-// Black screen (TOD, Netflix vb.) sorununu aşmak için donanım hızlandırmayı kapatma seçeneği.
-// Bu ayar app.whenReady() öncesinde çağrılmalıdır.
-const fs = require('fs');
-const settingsPath = path.join(app.getPath('userData'), 'settings.json');
-let drmBypassEnabled = false;
-
-try {
-    if (fs.existsSync(settingsPath)) {
-        const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        if (settings.drmBypass) {
-            drmBypassEnabled = true;
-            app.disableHardwareAcceleration();
-            log.info('🛡️ DRM Bypass aktif: Donanım hızlandırma kapatıldı.');
-        }
-    }
-} catch (err) {
-    log.error('Ayarlar okunamadı:', err);
-}
-
 // Development modunda mı?
 const isDev = process.env.NODE_ENV === 'development' || !app.isPackaged;
 
-// Electron Audio/WebRTC Gelişmiş Optimizasyonlar
-// ===============================================
-
-// WebRTC Hardware Acceleration
-if (!drmBypassEnabled) {
-    app.commandLine.appendSwitch('enable-webrtc-hw-encoding');
-    app.commandLine.appendSwitch('enable-webrtc-hw-decoding');
-    app.commandLine.appendSwitch('enable-webrtc-hw-h264-encoding');
-} else {
-    // If DRM Bypass is enabled, disable additional acceleration features
-    // app.commandLine.appendSwitch('disable-accelerated-video-decode');
-    // app.commandLine.appendSwitch('disable-gpu-rasterization');
-}
-
-// Audio Latency & Processing
-app.commandLine.appendSwitch('enable-features', 'WebRTCPipeWireCapturer,AudioServiceOutOfProcess');
-app.commandLine.appendSwitch('disable-features', 'HardwareMediaKeyHandling,AudioServiceSandbox');
-app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
-
-// Background Throttling Disable (Ses kesilmelerini önler)
+// Throttling'i devre dışı bırak (Arka planda çalışması için - AGRESİF)
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
-// GPU & Rendering
-app.commandLine.appendSwitch('enable-gpu-rasterization');
-app.commandLine.appendSwitch('enable-zero-copy');
-app.commandLine.appendSwitch('ignore-gpu-blocklist');
+// WGC (Windows Graphics Capture) yerine eski DXGI/GDI capture zorla (Donma sorununu çözmek için)
+app.commandLine.appendSwitch('disable-features', 'WebRtcAllowWgcWindowCapturer');
 
 // Auto-updater ayarları
 autoUpdater.autoDownload = true;
@@ -117,8 +58,6 @@ function createWindow() {
     // Development'ta Vite dev server'dan yükle
     if (isDev) {
         mainWindow.loadURL('http://localhost:5173');
-        // DevTools'u otomatik AÇMA (Kullanıcı isteği üzerine)
-        // mainWindow.webContents.openDevTools();
     } else {
         // Production'da build edilmiş dosyaları yükle
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
@@ -126,8 +65,6 @@ function createWindow() {
 
     // Pencere kapandığında
     mainWindow.on('closed', () => {
-        // macOS'ta pencere kapansa bile uygulama çalışmaya devam eder
-        // Windows/Linux'ta uygulama kapanır
     });
 
     /**
@@ -184,10 +121,6 @@ function createWindow() {
         log.error('❌ Güncelleme hatası:', err);
     });
 
-    autoUpdater.on('error', (err) => {
-        console.error('❌ Güncelleme hatası:', err);
-    });
-
     return mainWindow;
 }
 
@@ -227,10 +160,6 @@ app.on('window-all-closed', () => {
 
 /**
  * IPC (Inter-Process Communication) Event'leri
- * Renderer <-> Main arasında mesajlaşma için
- * 
- * Ekran paylaşımı için desktopCapturer gibi özellikler
- * burada expose edilecek
  */
 // IPC: Desktop Sources
 ipcMain.handle('get-desktop-sources', async () => {
@@ -250,7 +179,7 @@ ipcMain.handle('get-desktop-sources', async () => {
 // ==========================================
 // Global Keybinds (Passive / uIOhook)
 // ==========================================
-const { uIOhook, UiohookKey } = require('uiohook-napi');
+const { uIOhook } = require('uiohook-napi');
 
 let globalKeybinds = {
     toggleMic: null,
@@ -259,18 +188,13 @@ let globalKeybinds = {
 
 // Frontend'den keybind map'ini al (uIOhook kodlarıyla)
 ipcMain.on('update-global-keybinds', (event, keybinds) => {
-    // keybinds: { toggleMic: 50, toggleSpeaker: 32 } gibi
     globalKeybinds = keybinds;
-    // log.info('Global keybinds updated:', globalKeybinds);
 });
 
 // Hook event listener
 uIOhook.on('input', (e) => {
-    // Sadece KEY_DOWN eventleri (type 4 = keydown, 5 = keyup)
-    // uIOhook-napi: e.type === 4 (keydown)
     if (e.type === 4) {
         if (globalKeybinds.toggleMic && e.keycode === globalKeybinds.toggleMic) {
-            // Renderer'a haber ver
             const wins = BrowserWindow.getAllWindows();
             wins.forEach(win => win.webContents.send('global-shortcut-triggered', 'toggleMic'));
         }
@@ -292,31 +216,10 @@ app.on('will-quit', () => {
     uIOhook.stop();
 });
 
-// IPC: Ayarları getir
-ipcMain.handle('get-settings', async () => {
-    try {
-        if (fs.existsSync(settingsPath)) {
-            return JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        }
-    } catch (err) {
-        log.error('Ayarlar okunamadı:', err);
-    }
-    return {};
-});
-
-// IPC: Ayarları kaydet
-ipcMain.on('save-settings', (event, newSettings) => {
-    try {
-        let currentSettings = {};
-        if (fs.existsSync(settingsPath)) {
-            currentSettings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
-        }
-        const updatedSettings = { ...currentSettings, ...newSettings };
-        fs.writeFileSync(settingsPath, JSON.stringify(updatedSettings, null, 2));
-        log.info('Ayarlar kaydedildi:', updatedSettings);
-    } catch (err) {
-        log.error('Ayarlar kaydedilemedi:', err);
-    }
+// IPC: Open External Link
+ipcMain.handle('open-external', async (event, url) => {
+    const { shell } = require('electron');
+    await shell.openExternal(url);
 });
 
 // IPC: App Version

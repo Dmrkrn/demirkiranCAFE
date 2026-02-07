@@ -37,7 +37,7 @@ interface UseScreenShareReturn {
 
     // Metodlar
     getSources: () => Promise<DesktopSource[]>;
-    startScreenShare: (sourceId: string) => Promise<MediaStream | null>;
+    startScreenShare: (sourceId: string, includeAudio?: boolean) => Promise<MediaStream | null>;
     stopScreenShare: () => void;
 }
 
@@ -78,21 +78,29 @@ export function useScreenShare(): UseScreenShareReturn {
     /**
      * Ekran paylaşımını başlat
      * @param sourceId - Electron'dan seçilen kaynak ID'si (veya boş string tarayıcı için)
+     * @param includeAudio - Sistem sesini dahil et (varsayılan: sadece tam ekran için true)
      */
-    const startScreenShare = useCallback(async (sourceId: string): Promise<MediaStream | null> => {
+    const startScreenShare = useCallback(async (sourceId: string, includeAudio: boolean = true): Promise<MediaStream | null> => {
         try {
-            console.log('🖥️ Ekran paylaşımı başlatılıyor...');
+            console.log('🖥️ Ekran paylaşımı başlatılıyor...', { sourceId, includeAudio });
 
             let stream: MediaStream;
 
             if (window.electronAPI && sourceId) {
-                // Electron içinde - chromeMediaSource kullan
+                // Pencere paylaşımında ses dahil edilmez (demirkiranCAFE sesi gitmemesi için)
+                const isWindowShare = sourceId.startsWith('window:');
+
+                console.log(`🖥️ Kaynak türü: ${isWindowShare ? 'PENCERE' : 'TAM EKRAN'}`);
+
+                // Video + Audio birlikte al (Electron için)
                 stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         mandatory: {
                             chromeMediaSource: 'desktop',
                             chromeMediaSourceId: sourceId,
-                        }
+                        },
+                        // @ts-ignore - Windows/Electron deneysel özellik (Uygulama kendi sesini duymasın)
+                        systemAudio: 'exclude',
                     } as any,
                     video: {
                         mandatory: {
@@ -107,6 +115,19 @@ export function useScreenShare(): UseScreenShareReturn {
                         },
                     } as MediaTrackConstraints,
                 });
+
+                // Pencere paylaşımında ses dahil edilsin mi? (includeAudio)
+                // Kendi sesimizi engellemek için restrictOwnAudio constraint kullanıyoruz ve işe yarayacağını umuyoruz.
+                if (!includeAudio) {
+                    const audioTracks = stream.getAudioTracks();
+                    audioTracks.forEach(track => {
+                        stream.removeTrack(track);
+                        track.stop();
+                        console.log('🔇 Audio track kaldırıldı (pencere paylaşımı)');
+                    });
+                } else {
+                    console.log('🔊 Tam ekran paylaşımı: Ses dahil');
+                }
 
                 // Audio track için constraints'leri sonradan uygula (Echo Cancellation)
                 const audioTrack = stream.getAudioTracks()[0];
@@ -210,6 +231,39 @@ export function useScreenShare(): UseScreenShareReturn {
             stopScreenShare();
         };
     }, [stopScreenShare]);
+
+    // Pencere değişikliği algılama - Paylaşılan kaynak hala mevcut mu kontrol et
+    useEffect(() => {
+        if (!isSharing || !selectedSourceId || !window.electronAPI) {
+            return;
+        }
+
+        // Sadece pencere paylaşımlarını kontrol et (screen: değil window:)
+        if (!selectedSourceId.startsWith('window:')) {
+            return;
+        }
+
+        const checkSourceAvailability = async () => {
+            try {
+                const sources = await window.electronAPI!.getDesktopSources();
+                const sourceExists = sources.some(s => s.id === selectedSourceId);
+
+                if (!sourceExists) {
+                    console.log('⚠️ Paylaşılan pencere kapandı, yayın durduruluyor...');
+                    stopScreenShare();
+                }
+            } catch (error) {
+                console.error('Kaynak kontrolü hatası:', error);
+            }
+        };
+
+        // Her 2 saniyede bir kontrol et
+        const intervalId = setInterval(checkSourceAvailability, 2000);
+
+        return () => {
+            clearInterval(intervalId);
+        };
+    }, [isSharing, selectedSourceId, stopScreenShare]);
 
     return {
         isSharing,

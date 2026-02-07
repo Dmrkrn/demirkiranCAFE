@@ -28,7 +28,18 @@ export const LinkifiedText: React.FC<LinkifiedTextProps> = ({ text }) => {
                             target="_blank"
                             rel="noopener noreferrer"
                             className="chat-link"
-                            onClick={(e) => e.stopPropagation()}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+
+                                // Electron'da harici tarayıcıda aç
+                                if (window.electronAPI?.openExternal) {
+                                    window.electronAPI.openExternal(href);
+                                } else {
+                                    // Web'de yeni sekmede aç
+                                    window.open(href, '_blank');
+                                }
+                            }}
                         >
                             {part}
                         </a>

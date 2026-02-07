@@ -69,6 +69,16 @@ function App() {
     // Aktif Hoparlör ID
     const [activeSpeakerId, setActiveSpeakerId] = useState<string>('');
 
+    // Context Menu State (Sağ Tık Menüsü)
+    const [contextMenu, setContextMenu] = useState<{ x: number, y: number, peerId: string } | null>(null);
+
+    // Menü dışına tıklanınca kapat
+    useEffect(() => {
+        const handleClick = () => setContextMenu(null);
+        document.addEventListener('click', handleClick);
+        return () => document.removeEventListener('click', handleClick);
+    }, []);
+
     // Oda Değiştirme Fonksiyonu
     const handleSwitchRoom = async (targetRoom: 'main' | 'dev') => {
         // Zaten o odadaysak ve bağlıysak işlem yapma
@@ -123,6 +133,7 @@ function App() {
         consumeAll,
         consumeProducer,
         closeProducer,
+        removeConsumerByProducerId,
         replaceTrack,
         closeAll,
     } = useMediasoup({ request });
@@ -406,6 +417,9 @@ function App() {
         // Producer kapandığında (Ekran paylaşımı durduğunda)
         socket.on('producer-closed', (data: { producerId: string; peerId: string }) => {
             console.log('🛑 Producer kapandı sinyali alındı:', data.producerId);
+            // Varsa açık consumer'ı kapat
+            removeConsumerByProducerId(data.producerId);
+            // Listeden çıkar
             setAvailableScreenShares(prev => prev.filter(p => p.producerId !== data.producerId));
         });
 
@@ -963,7 +977,18 @@ function App() {
                                                             const hasVideo = !!videoConsumer;
 
                                                             return (
-                                                                <div key={peer.id} className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}>
+                                                                <div
+                                                                    key={peer.id}
+                                                                    className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
+                                                                    onContextMenu={(e) => {
+                                                                        e.preventDefault();
+                                                                        setContextMenu({
+                                                                            x: e.clientX,
+                                                                            y: e.clientY,
+                                                                            peerId: peer.id
+                                                                        });
+                                                                    }}
+                                                                >
                                                                     {hasVideo ? (
                                                                         <VideoPlayer stream={videoConsumer.stream} />
                                                                     ) : (
@@ -998,7 +1023,16 @@ function App() {
                                                                 if (screenConsumer) {
                                                                     const owner = peers.find(p => p.id === screenConsumer.peerId);
                                                                     return (
-                                                                        <div className="video-container remote-screen-share">
+                                                                        <div className="video-container remote-screen-share"
+                                                                            onContextMenu={(e) => {
+                                                                                e.preventDefault();
+                                                                                setContextMenu({
+                                                                                    x: e.clientX,
+                                                                                    y: e.clientY,
+                                                                                    peerId: screenConsumer.peerId
+                                                                                });
+                                                                            }}
+                                                                        >
                                                                             <VideoPlayer stream={screenConsumer.stream} />
                                                                             <div className="video-label">🖥️ {owner?.username || 'Biri'} Ekran Paylaşıyor</div>
                                                                         </div>
@@ -1089,6 +1123,14 @@ function App() {
                                                             <div
                                                                 key={peer.id}
                                                                 className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
+                                                                onContextMenu={(e) => {
+                                                                    e.preventDefault();
+                                                                    setContextMenu({
+                                                                        x: e.clientX,
+                                                                        y: e.clientY,
+                                                                        peerId: peer.id
+                                                                    });
+                                                                }}
                                                                 onClick={(e) => {
                                                                     const target = e.currentTarget;
                                                                     if (document.fullscreenElement) {
@@ -1371,6 +1413,40 @@ function App() {
                 onCameraChange={changeVideoInput}
                 onThresholdChange={(val) => setMicThreshold(val)}
             />
+
+            {/* Sağ Tık Menüsü (Volume Kontrol) */}
+            {contextMenu && (
+                <div
+                    className="context-menu"
+                    style={{
+                        position: 'fixed',
+                        top: contextMenu.y,
+                        left: contextMenu.x,
+                        background: '#1a1a1a',
+                        border: '1px solid #333',
+                        borderRadius: '8px',
+                        padding: '10px',
+                        zIndex: 9999,
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+                        minWidth: '150px'
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '8px' }}>Ses Seviyesi</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🔊</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={userVolumes[contextMenu.peerId] ?? 100}
+                            onChange={(e) => handleVolumeChange(contextMenu.peerId, Number(e.target.value))}
+                            style={{ width: '100%', cursor: 'pointer', accentColor: '#e94560' }}
+                        />
+                        <span style={{ fontSize: '12px', minWidth: '30px' }}>{userVolumes[contextMenu.peerId] ?? 100}%</span>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

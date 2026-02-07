@@ -998,3 +998,72 @@
     border-left: 3px solid var(--success);
     animation: user-glow 0.6s infinite alternate;
 }
+
+/* Screen Share Volume Control */
+/* Screen Share Volume Control */
+.screen-volume-control {
+    display: flex !important;
+    /* Her zaman flex olsun */
+    opacity: 0;
+    /* Ama görünmez */
+    pointer-events: none;
+    /* Tıklanamaz */
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 5px 12px;
+    border-radius: 20px;
+    z-index: 100;
+    /* Daha yüksek z-index */
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: opacity 0.2s ease;
+}
+
+.remote-screen-share:hover .screen-volume-control {
+    opacity: 1 !important;
+    /* Hover olunca görünür */
+    pointer-events: auto;
+    /* Tıklanabilir */
+}
+
+.screen-volume-control input[type="range"] {
+    accent-color: var(--accent);
+}
+
+/* Fullscreen Styles */
+.video-container:fullscreen,
+.video-container:-webkit-full-screen,
+.video-container:-moz-full-screen {
+    background-color: black;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100vw;
+    height: 100vh;
+    padding: 0;
+    border: none;
+    border-radius: 0;
+}
+
+.video-container:fullscreen video,
+.video-container:-webkit-full-screen video,
+.video-container:-moz-full-screen video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+    max-width: none;
+    max-height: none;
+}
+
+.video-container:fullscreen .video-label,
+.video-container:-webkit-full-screen .video-label,
+.video-container:-moz-full-screen .video-label {
+    /* Fullscreen modunda etiketi biraz daha büyük yapabiliriz veya olduğu gibi bırakabiliriz */
+    font-size: 1.5rem;
+    padding: 10px 20px;
+}

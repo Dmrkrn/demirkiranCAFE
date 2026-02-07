@@ -418,6 +418,21 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
     }, [producers]);
 
     /**
+     * Producer ID'ye göre consumer'ı kapat ve kaldır
+     * Producer kapandığında çağrılır
+     */
+    const removeConsumerByProducerId = useCallback((producerId: string) => {
+        setConsumers(prev => {
+            const consumer = prev.find(c => c.producerId === producerId);
+            if (consumer) {
+                consumer.consumer.close();
+                console.log('🗑️ Consumer kapatıldı (producer kapandı):', producerId);
+            }
+            return prev.filter(c => c.producerId !== producerId);
+        });
+    }, []);
+
+    /**
      * Temizlik: Tüm producer ve consumer'ları kapat
      */
     const closeAll = useCallback(() => {
@@ -450,6 +465,7 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
         consumeProducer,
         closeProducer,
         replaceTrack,
+        removeConsumerByProducerId,
         closeAll,
     };
 }
