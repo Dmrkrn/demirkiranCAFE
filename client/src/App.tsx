@@ -724,8 +724,7 @@ function App() {
                     />
                 )}
 
-                {/* Settings Panel */}
-                <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
+
 
 
 
