@@ -211,12 +211,16 @@ export function useMediaDevices(): UseMediaDevicesReturn {
         if (streamRef.current) {
             const audioTrack = streamRef.current.getAudioTracks()[0];
             if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                setAudioEnabled(audioTrack.enabled);
-                console.log(`🎤 Ses: ${audioTrack.enabled ? 'açık' : 'kapalı'}`);
+                // VAD (Voice Activity Detection) track.enabled'i değiştirebildiği için
+                // track.enabled'a güvenemeyiz. Logical state'i (audioEnabled) baz alıyoruz.
+                const newState = !audioEnabled;
+
+                audioTrack.enabled = newState;
+                setAudioEnabled(newState);
+                console.log(`🎤 Ses: ${newState ? 'açık' : 'kapalı'} (Logical)`);
             }
         }
-    }, []);
+    }, [audioEnabled]);
 
     // Cleanup: Component unmount olduğunda medyayı durdur
     useEffect(() => {

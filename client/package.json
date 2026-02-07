@@ -1,6 +1,7 @@
 {
   "name": "demirkiran-cafe-client",
-  "version": "1.0.7",
+  "private": true,
+  "version": "1.0.9",
   "description": "DemirkiranCAFE Desktop Client - Real-time communication app",
   "main": "electron/main.js",
   "scripts": {

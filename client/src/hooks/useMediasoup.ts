@@ -67,7 +67,8 @@ interface UseMediasoupReturn {
     produceAudio: (track: MediaStreamTrack) => Promise<string | null>;
     consumeAll: () => Promise<void>;
     consumeProducer: (producerId: string) => Promise<void>;
-    closeProducer: (producerId: string) => void; // <-- YENİ
+    closeProducer: (producerId: string) => void;
+    replaceTrack: (producerId: string, track: MediaStreamTrack) => Promise<boolean>;
     closeAll: () => void;
 }
 
@@ -382,6 +383,9 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
     /**
      * Tek bir producer'ı kapat
      */
+    /**
+     * Tek bir producer'ı kapat
+     */
     const closeProducer = useCallback((producerId: string) => {
         const producerEntry = producers.find(p => p.id === producerId);
         if (producerEntry) {
@@ -394,6 +398,24 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
             console.log('🛑 Producer kapatıldı:', producerId);
         }
     }, [producers, request]);
+
+    const replaceTrack = useCallback(async (producerId: string, track: MediaStreamTrack): Promise<boolean> => {
+        const producerEntry = producers.find(p => p.id === producerId);
+        if (!producerEntry) {
+            console.error('❌ replaceTrack: Producer bulunamadı:', producerId);
+            return false;
+        }
+
+        try {
+            console.log(`🔄 ${producerEntry.kind} track değiştiriliyor:`, producerId);
+            await producerEntry.producer.replaceTrack({ track });
+            console.log(`✅ ${producerEntry.kind} track başarıyla değiştirildi!`);
+            return true;
+        } catch (error) {
+            console.error('❌ replaceTrack hatası:', error);
+            return false;
+        }
+    }, [producers]);
 
     /**
      * Temizlik: Tüm producer ve consumer'ları kapat
@@ -427,6 +449,7 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
         consumeAll,
         consumeProducer,
         closeProducer,
+        replaceTrack,
         closeAll,
     };
 }

@@ -337,7 +337,7 @@
     flex: 1;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--spacing-md);
+    gap: var(--spacing-lg);
     padding: var(--spacing-md);
     overflow-y: auto;
     min-height: 0;

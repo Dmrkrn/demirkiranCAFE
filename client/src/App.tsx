@@ -115,6 +115,7 @@ function App() {
 
     const {
         consumers,
+        producers,
         loadDevice,
         createTransports,
         produceVideo,
@@ -122,6 +123,7 @@ function App() {
         consumeAll,
         consumeProducer,
         closeProducer,
+        replaceTrack,
         closeAll,
     } = useMediasoup({ request });
 
@@ -232,7 +234,27 @@ function App() {
         if (localVideoRef.current && localStream) {
             localVideoRef.current.srcObject = localStream;
         }
-    }, [localStream]);
+
+        // Mediasoup Producer'larını güncelle (Mikrofon/Kamera değişince)
+        if (localStream && isJoined) {
+            const audioTrack = localStream.getAudioTracks()[0];
+            const videoTrack = localStream.getVideoTracks()[0];
+
+            // Mevcut producer'ları bul
+            const audioProducer = producers.find(p => p.kind === 'audio');
+            const videoProducer = producers.find(p => p.kind === 'video');
+
+            if (audioTrack && audioProducer && audioProducer.producer.track !== audioTrack) {
+                console.log('🎤 Yeni ses track\'i algılandı, producer güncelleniyor...');
+                replaceTrack(audioProducer.id, audioTrack).catch(console.error);
+            }
+
+            if (videoTrack && videoProducer && videoProducer.producer.track !== videoTrack) {
+                console.log('📹 Yeni video track\'i algılandı, producer güncelleniyor...');
+                replaceTrack(videoProducer.id, videoTrack).catch(console.error);
+            }
+        }
+    }, [localStream, producers, isJoined]);
 
     // Screen video'yu video elementine bağla
     useEffect(() => {
@@ -247,7 +269,10 @@ function App() {
         if (localStream) {
             const audioTrack = localStream.getAudioTracks()[0];
             if (audioTrack) {
-                const willBeMuted = audioTrack.enabled; // enabled=true ise mute edilecek demektir
+                // audioEnabled: Şu anki durum (True = Açık, False = Kapalı)
+                // True ise kapatacağız -> willBeMuted = true
+                const willBeMuted = audioEnabled;
+
                 toggleAudio();
 
                 // Sunucuya bildir
@@ -260,7 +285,7 @@ function App() {
                 }
             }
         }
-    }, [localStream, toggleAudio, sendStatusUpdate]);
+    }, [localStream, toggleAudio, sendStatusUpdate, audioEnabled]);
 
     // Sesi kapat/aç - Deafen (sesli bildirimle)
     // Sesi kapat/aç - Deafen (sesli bildirimle)
@@ -347,7 +372,7 @@ function App() {
         };
 
         const handlePeerLeft = (data: { peerId: string }) => {
-            console.log('👋 Bir kullanıcı ayrıldı, ses çalınıyor...');
+            console.log('👋 Bir kullanıcı ayrıldı, ses çalınıyor:', data.peerId);
             playLeaveSound();
         };
 
@@ -1050,7 +1075,7 @@ function App() {
                                                             <div className="video-placeholder-content">
                                                                 <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
                                                                 <div className="placeholder-name">{username}</div>
-                                                                <div className="placeholder-text">Kamera kapalı</div>
+
                                                             </div>
                                                         )}
                                                         <div className="video-label">{username} (Sen)</div>
@@ -1082,7 +1107,7 @@ function App() {
                                                                     <div className="video-placeholder-content">
                                                                         <Avatar name={peer.username} size="xl" />
                                                                         <div className="placeholder-name">{peer.username}</div>
-                                                                        <div className="placeholder-text">Kamera kapalı</div>
+
                                                                     </div>
                                                                 )}
 
