@@ -147,6 +147,16 @@ function App() {
         stopScreenShare,
     } = useScreenShare();
 
+    // Local Screen Share Preview State (Echo Prevention)
+    const [showLocalScreenPreview, setShowLocalScreenPreview] = useState(false);
+
+    // Reset preview when sharing starts/stops
+    useEffect(() => {
+        if (isSharing) {
+            setShowLocalScreenPreview(false);
+        }
+    }, [isSharing]);
+
     // VAD (Voice Activity Detection) - Eşik değeri localStorage'dan
     const [micThreshold, setMicThreshold] = useState(() => {
         const saved = localStorage.getItem('demirkiran-mic-threshold');
@@ -272,7 +282,7 @@ function App() {
         if (screenVideoRef.current && screenStream) {
             screenVideoRef.current.srcObject = screenStream;
         }
-    }, [screenStream]);
+    }, [screenStream, showLocalScreenPreview]);
 
 
     // Mikrofonu aç/kapat (sesli bildirimle)
@@ -370,6 +380,11 @@ function App() {
 
     // Ekran paylaşımlarını takip etmek için state
     const [availableScreenShares, setAvailableScreenShares] = useState<{ producerId: string; peerId: string }[]>([]);
+    const [screenAudioMap, setScreenAudioMap] = useState<Record<string, string>>({});
+
+    // Refs for socket callbacks to avoid stale state
+    const consumersRef = useRef(consumers);
+    useEffect(() => { consumersRef.current = consumers; }, [consumers]);
 
     // Yeni producer (stream) açıldığında
     useEffect(() => {
@@ -394,12 +409,24 @@ function App() {
 
                 // Ekran paylaşımı ise otomatik consume ETME
                 if (data.appData?.isScreen) {
-                    console.log('🖥️ Ekran paylaşımı algılandı, beklemede:', data.producerId);
-                    setAvailableScreenShares(prev => {
-                        // Duplicate kontrolü
-                        if (prev.find(p => p.producerId === data.producerId)) return prev;
-                        return [...prev, { producerId: data.producerId, peerId: data.peerId }];
-                    });
+                    console.log('🖥️ Ekran paylaşımı algılandı:', data.producerId, data.kind);
+
+                    if (data.kind === 'video') {
+                        setAvailableScreenShares(prev => {
+                            if (prev.find(p => p.producerId === data.producerId)) return prev;
+                            return [...prev, { producerId: data.producerId, peerId: data.peerId }];
+                        });
+                    } else if (data.kind === 'audio') {
+                        // Check if we are already consuming the video using Ref
+                        const existingVideoConsumer = consumersRef.current.find(c => c.peerId === data.peerId && c.appData?.isScreen && c.kind === 'video');
+                        if (existingVideoConsumer) {
+                            console.log('🔊 Ekran videosu zaten izleniyor, ses otomatik consume ediliyor:', data.producerId);
+                            await consumeProducer(data.producerId);
+                        } else {
+                            console.log('⏳ Ekran sesi beklemede:', data.producerId);
+                            setScreenAudioMap(prev => ({ ...prev, [data.peerId]: data.producerId }));
+                        }
+                    }
                     return;
                 }
 
@@ -421,6 +448,14 @@ function App() {
             removeConsumerByProducerId(data.producerId);
             // Listeden çıkar
             setAvailableScreenShares(prev => prev.filter(p => p.producerId !== data.producerId));
+
+            // Audio map'ten de temizle
+            setScreenAudioMap(prev => {
+                const newMap = { ...prev };
+                const peerId = Object.keys(newMap).find(key => newMap[key] === data.producerId);
+                if (peerId) delete newMap[peerId];
+                return newMap;
+            });
         });
 
         // Bir producer kapandığında listeden çıkar (Signal lazım ama şimdilik consumer kapandığında hallediliyor mu?)
@@ -681,7 +716,7 @@ function App() {
                 // Audio produce et (Sistem sesi varsa)
                 const audioTrack = stream.getAudioTracks()[0];
                 if (audioTrack) {
-                    const pid = await produceAudio(audioTrack);
+                    const pid = await produceAudio(audioTrack, { isScreen: true });
                     screenAudioProducerIdRef.current = pid;
                     console.log('🔊 Ekran paylaşımı audio producer oluşturuldu:', pid);
                 }
@@ -708,7 +743,7 @@ function App() {
             // Audio produce et (Sistem sesi varsa)
             const audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) {
-                const pid = await produceAudio(audioTrack);
+                const pid = await produceAudio(audioTrack, { isScreen: true });
                 screenAudioProducerIdRef.current = pid;
                 console.log('🔊 Ekran paylaşımı audio producer oluşturuldu:', pid);
             }
@@ -1006,16 +1041,70 @@ function App() {
                                                     {/* Ana Alan: Ekran Paylaşımı */}
                                                     <div className="presentation-hero">
                                                         {isSharing && screenStream ? (
-                                                            <div className="video-container screen-share-video">
-                                                                <video
-                                                                    ref={screenVideoRef}
-                                                                    autoPlay
-                                                                    muted
-                                                                    playsInline
-                                                                    className="video-element"
-                                                                />
-                                                                <div className="video-label">🖥️ Ekran Paylaşımınız</div>
-                                                            </div>
+                                                            // Local Screen Share View
+                                                            showLocalScreenPreview ? (
+                                                                <div className="video-container screen-share-video">
+                                                                    <video
+                                                                        ref={screenVideoRef}
+                                                                        autoPlay
+                                                                        muted
+                                                                        playsInline
+                                                                        className="video-element"
+                                                                    />
+                                                                    <div className="video-overlay-controls" style={{
+                                                                        position: 'absolute',
+                                                                        bottom: '10px',
+                                                                        right: '10px',
+                                                                        zIndex: 10
+                                                                    }}>
+                                                                        <button
+                                                                            onClick={() => setShowLocalScreenPreview(false)}
+                                                                            style={{
+                                                                                background: 'rgba(0,0,0,0.6)',
+                                                                                color: 'white',
+                                                                                border: '1px solid rgba(255,255,255,0.2)',
+                                                                                padding: '5px 10px',
+                                                                                borderRadius: '4px',
+                                                                                cursor: 'pointer',
+                                                                                fontSize: '0.8rem'
+                                                                            }}
+                                                                        >
+                                                                            Önizlemeyi Gizle
+                                                                        </button>
+                                                                    </div>
+                                                                    <div className="video-label">🖥️ Ekran Paylaşımınız</div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="video-container screen-share-placeholder"
+                                                                    style={{
+                                                                        display: 'flex',
+                                                                        flexDirection: 'column',
+                                                                        alignItems: 'center',
+                                                                        justifyContent: 'center',
+                                                                        background: 'var(--bg-secondary)',
+                                                                        color: 'var(--text-secondary)'
+                                                                    }}
+                                                                >
+                                                                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🖥️</div>
+                                                                    <h3>Ekranını Paylaşıyorsun</h3>
+                                                                    <p style={{ fontSize: '0.9rem', marginBottom: '1rem', opacity: 0.8 }}>
+                                                                        Yankı yapmaması için önizleme kapalı.
+                                                                    </p>
+                                                                    <button
+                                                                        onClick={() => setShowLocalScreenPreview(true)}
+                                                                        style={{
+                                                                            padding: '10px 20px',
+                                                                            background: 'var(--primary-color)',
+                                                                            color: 'white',
+                                                                            border: 'none',
+                                                                            borderRadius: 'var(--radius-sm)',
+                                                                            cursor: 'pointer'
+                                                                        }}
+                                                                    >
+                                                                        Kendi Yayınımı Gör
+                                                                    </button>
+                                                                </div>
+                                                            )
                                                         ) : (
                                                             (() => {
                                                                 // 1. Zaten izlediğimiz bir yayın var mı?
@@ -1066,7 +1155,14 @@ function App() {
                                                                                             🖥️ {owner?.username || 'Biri'} Ekran Paylaşıyor
                                                                                         </h3>
                                                                                         <button
-                                                                                            onClick={() => consumeProducer(share.producerId)}
+                                                                                            onClick={async () => {
+                                                                                                await consumeProducer(share.producerId);
+                                                                                                const audioPid = screenAudioMap[share.peerId];
+                                                                                                if (audioPid) {
+                                                                                                    console.log('🔊 Bekleyen ekran sesi consume ediliyor:', audioPid);
+                                                                                                    await consumeProducer(audioPid);
+                                                                                                }
+                                                                                            }}
                                                                                             style={{
                                                                                                 padding: '10px 20px',
                                                                                                 backgroundColor: 'var(--primary-color)',

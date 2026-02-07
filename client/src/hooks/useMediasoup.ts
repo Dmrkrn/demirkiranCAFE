@@ -277,16 +277,19 @@ export function useMediasoup({ request }: UseMediasoupProps): UseMediasoupReturn
      * ------------------------
      * Mikrofondan gelen ses track'ini sunucuya gönder.
      */
-    const produceAudio = useCallback(async (track: MediaStreamTrack): Promise<string | null> => {
+    const produceAudio = useCallback(async (track: MediaStreamTrack, appData?: any): Promise<string | null> => {
         if (!sendTransportRef.current) {
             console.error('Send transport yok!');
             return null;
         }
 
         try {
-            console.log('🎤 Audio producer oluşturuluyor...');
+            console.log('🎤 Audio producer oluşturuluyor...', appData);
 
-            const producer = await sendTransportRef.current.produce({ track });
+            const producer = await sendTransportRef.current.produce({
+                track,
+                appData: appData
+            });
 
             setProducers(prev => [...prev, { id: producer.id, kind: 'audio', producer }]);
             console.log('✅ Audio producer oluşturuldu:', producer.id);
