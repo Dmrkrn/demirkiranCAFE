@@ -1,0 +1,9 @@
+services:
+  demirkiran-backend:
+    build: .
+    container_name: demirkiran-backend
+    # Host network: Mediasoup UDP portları (40000-49999) direkt kullanılır
+    # Docker bridge mode ile 10.000 port map etmek pratik değil
+    network_mode: host
+    env_file: .env
+    restart: unless-stopped
