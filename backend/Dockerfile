@@ -1,10 +1,10 @@
 # ============================================
 # Stage 1: Build
 # ============================================
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 
 # Mediasoup C++ native modülü için gerekli build araçları
-RUN apk add --no-cache python3 make g++ linux-headers
+RUN apk add --no-cache python3 py3-pip make g++ linux-headers
 
 WORKDIR /app
 
@@ -19,10 +19,10 @@ RUN npm run build
 # ============================================
 # Stage 2: Production
 # ============================================
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 
 # Mediasoup runtime için native build araçları gerekli
-RUN apk add --no-cache python3 make g++ linux-headers
+RUN apk add --no-cache python3 py3-pip make g++ linux-headers
 
 WORKDIR /app
 
