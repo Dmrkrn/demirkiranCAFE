@@ -1,7 +1,7 @@
 services:
   demirkiran-backend:
     # Kendi Docker Hub isminizle değiştirin
-    image: kullaniciadi/demirkiran-backend:latest
+    image: dmrkrnn/demirkiran-backend:latest
     container_name: demirkiran-backend
     network_mode: host
     env_file: .env
