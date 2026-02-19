@@ -8,7 +8,7 @@ RUN apk add --no-cache python3 py3-pip make g++ linux-headers
 
 WORKDIR /app
 
-# Bağımlılıkları önce kopyala (cache optimizasyonu)
+# Bağımlılıkları yükle (Bu aşamada Mediasoup derlenir - Yaklaşık 5-10 dk sürer)
 COPY package*.json ./
 RUN npm ci
 
@@ -16,22 +16,22 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
+# Gereksiz dev dependencies'leri temizle (Ama derlenmiş mediasoup kalsın)
+RUN npm prune --omit=dev
+
 # ============================================
 # Stage 2: Production
 # ============================================
 FROM node:22-alpine AS production
 
-# Mediasoup runtime için native build araçları gerekli
-RUN apk add --no-cache python3 py3-pip make g++ linux-headers
+# Mediasoup worker'ın çalışması için gerekli kütüphaneler
+RUN apk add --no-cache libstdc++
 
 WORKDIR /app
 
-# Sadece production bağımlılıkları
-COPY package*.json ./
-RUN npm ci --omit=dev
-
-# Build çıktısını kopyala
+# Derlenmiş dosyaları ve temizlenmiş node_modules'u kopyala
 COPY --from=build /app/dist ./dist
+COPY --from=build /app/node_modules ./node_modules
 
 # Uygulama portu
 EXPOSE 3000
