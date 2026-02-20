@@ -1,8 +1,9 @@
 services:
   demirkiran-backend:
-    # Kendi Docker Hub isminizle değiştirin
     image: dmrkrnn/demirkiran-backend:latest
     container_name: demirkiran-backend
-    network_mode: host
+    ports:
+      - "3000:3000/tcp" # WebServer & Socket.IO
+      - "40000-49999:40000-49999/udp" # Mediasoup RTP (UDP range)
     env_file: .env
     restart: unless-stopped
