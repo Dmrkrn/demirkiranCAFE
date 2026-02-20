@@ -4,6 +4,6 @@ services:
     container_name: demirkiran-backend
     ports:
       - "3000:3000/tcp" # WebServer & Socket.IO
-      - "40000-49999:40000-49999/udp" # Mediasoup RTP (UDP range)
+      - "40000-40100:40000-40100/udp" # Mediasoup RTP (UDP range)
     env_file: .env
     restart: unless-stopped

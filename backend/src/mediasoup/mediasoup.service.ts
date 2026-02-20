@@ -129,7 +129,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             logTags: ['info', 'ice', 'dtls', 'rtp', 'srtp', 'rtcp'],
             // UDP port aralığı - Firewall'da açık olmalı
             rtcMinPort: 40000,
-            rtcMaxPort: 49999,
+            rtcMaxPort: 40100,
         });
 
         worker.on('died', (error) => {
