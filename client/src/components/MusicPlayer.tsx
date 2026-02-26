@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import './MusicPlayer.css';
 
 interface MusicPlayerProps {
     socket: any;
     request: <T, R>(event: string, data?: T) => Promise<R>;
     consumeProducer: (producerId: string) => Promise<void>;
+    /** Tüm consumer listesi - bot consumer'ını bulmak için */
+    consumers: Array<{ id: string; producerId: string; kind: string; stream: MediaStream; appData?: any }>;
 }
 
 interface NowPlaying {
@@ -21,7 +23,7 @@ interface QueueItem {
     requestedBy: string;
 }
 
-export function MusicPlayer({ socket, request, consumeProducer }: MusicPlayerProps) {
+export function MusicPlayer({ socket, request, consumeProducer, consumers }: MusicPlayerProps) {
     const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
     const [queue, setQueue] = useState<QueueItem[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -29,14 +31,47 @@ export function MusicPlayer({ socket, request, consumeProducer }: MusicPlayerPro
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
 
+    // Per-user volume & mute (kişiye özel, localStorage'da saklanır)
+    const [botVolume, setBotVolume] = useState(() => {
+        const saved = localStorage.getItem('musicBotVolume');
+        return saved ? parseInt(saved) : 50;
+    });
+    const [botMuted, setBotMuted] = useState(() => {
+        return localStorage.getItem('musicBotMuted') === 'true';
+    });
+
+    // Bot producer ID'si
+    const [botProducerId, setBotProducerId] = useState<string | null>(null);
+
+    // Audio ref (bot sesini çalmak için)
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    // Bot consumer'ını bul ve audio'ya bağla
+    useEffect(() => {
+        if (!botProducerId || !consumers) return;
+        const botConsumer = consumers.find(c => c.producerId === botProducerId && c.kind === 'audio');
+        if (botConsumer && audioRef.current) {
+            audioRef.current.srcObject = botConsumer.stream;
+        }
+    }, [botProducerId, consumers]);
+
+    // Volume değiştiğinde audio elementine uygula + localStorage'a kaydet
+    useEffect(() => {
+        if (audioRef.current) {
+            audioRef.current.volume = botMuted ? 0 : botVolume / 100;
+        }
+        localStorage.setItem('musicBotVolume', botVolume.toString());
+        localStorage.setItem('musicBotMuted', botMuted.toString());
+    }, [botVolume, botMuted]);
+
     // Socket event listener'ları
     useEffect(() => {
         if (!socket) return;
 
         const handleNowPlaying = (data: { nowPlaying: NowPlaying | null; producerId: string | null }) => {
             setNowPlaying(data.nowPlaying);
-            // Producer'ı consume et (müzik sesini duymak için)
             if (data.producerId) {
+                setBotProducerId(data.producerId);
                 consumeProducer(data.producerId).catch(console.error);
             }
         };
@@ -59,6 +94,7 @@ export function MusicPlayer({ socket, request, consumeProducer }: MusicPlayerPro
         // Producer ID'yi al ve consume et
         request<any, any>('music-producer-id').then((data: any) => {
             if (data?.producerId) {
+                setBotProducerId(data.producerId);
                 consumeProducer(data.producerId).catch(console.error);
             }
         }).catch(() => { });
@@ -102,8 +138,19 @@ export function MusicPlayer({ socket, request, consumeProducer }: MusicPlayerPro
         setTimeout(() => setStatusMessage(''), 3000);
     }, [request]);
 
+    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setBotVolume(parseInt(e.target.value));
+    };
+
+    const toggleMute = () => {
+        setBotMuted(!botMuted);
+    };
+
     return (
         <div className={`music-player ${isExpanded ? 'expanded' : ''}`}>
+            {/* Gizli Audio Element - bot sesini çalar */}
+            <audio ref={audioRef} autoPlay />
+
             {/* Compact Bar */}
             <div className="music-player-bar" onClick={() => setIsExpanded(!isExpanded)}>
                 <div className="music-player-icon">
@@ -123,23 +170,48 @@ export function MusicPlayer({ socket, request, consumeProducer }: MusicPlayerPro
                         <span className="music-idle">Müzik Botu</span>
                     )}
                 </div>
-                {nowPlaying && (
-                    <div className="music-controls-mini" onClick={(e) => e.stopPropagation()}>
-                        <button onClick={handlePause} title="Duraklat/Devam">⏯️</button>
-                        <button onClick={handleSkip} title="Atla">⏭️</button>
-                        <button onClick={handleStop} title="Durdur">⏹️</button>
-                    </div>
-                )}
+                <div className="music-controls-mini" onClick={(e) => e.stopPropagation()}>
+                    {/* Mute Button - her zaman görünür */}
+                    <button
+                        onClick={toggleMute}
+                        title={botMuted ? 'Sesi Aç' : 'Sustur'}
+                        className={botMuted ? 'muted' : ''}
+                    >
+                        {botMuted ? '🔇' : '🔊'}
+                    </button>
+                    {nowPlaying && (
+                        <>
+                            <button onClick={handlePause} title="Duraklat/Devam">⏯️</button>
+                            <button onClick={handleSkip} title="Atla">⏭️</button>
+                            <button onClick={handleStop} title="Durdur">⏹️</button>
+                        </>
+                    )}
+                </div>
             </div>
 
             {/* Expanded Panel */}
             {isExpanded && (
                 <div className="music-player-expanded">
+                    {/* Volume Control */}
+                    <div className="music-volume-row">
+                        <span className="volume-label">{botMuted ? '🔇' : botVolume > 50 ? '🔊' : botVolume > 0 ? '🔉' : '🔈'}</span>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={botVolume}
+                            onChange={handleVolumeChange}
+                            className="music-volume-slider"
+                            title={`Ses: ${botVolume}%`}
+                        />
+                        <span className="volume-value">{botVolume}%</span>
+                    </div>
+
                     {/* URL Input */}
                     <div className="music-input-row">
                         <input
                             type="text"
-                            placeholder="YouTube linki yapıştır..."
+                            placeholder="YouTube veya Spotify linki yapıştır..."
                             value={urlInput}
                             onChange={(e) => setUrlInput(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && handlePlay()}

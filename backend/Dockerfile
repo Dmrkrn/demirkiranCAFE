@@ -25,9 +25,9 @@ RUN npm prune --omit=dev
 FROM node:22-alpine AS production
 
 # Mediasoup worker'ın çalışması için gerekli kütüphaneler
-# ffmpeg + yt-dlp: Müzik botu için (YouTube ses indirme + RTP dönüşüm)
+# ffmpeg + yt-dlp + spotdl: Müzik botu için (YouTube/Spotify ses indirme + RTP dönüşüm)
 RUN apk add --no-cache libstdc++ ffmpeg python3 py3-pip \
-    && pip3 install --break-system-packages yt-dlp
+    && pip3 install --break-system-packages yt-dlp spotdl
 
 WORKDIR /app
 

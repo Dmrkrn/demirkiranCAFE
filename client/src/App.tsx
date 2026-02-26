@@ -941,6 +941,7 @@ function App() {
                                 socket={socket}
                                 request={request}
                                 consumeProducer={consumeProducer}
+                                consumers={consumers}
                             />
                         )}
 
