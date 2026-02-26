@@ -1,0 +1,390 @@
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { MediasoupService } from '../mediasoup/mediasoup.service';
+import { types as mediasoupTypes } from 'mediasoup';
+import { spawn, ChildProcess } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+
+export interface QueueItem {
+    url: string;
+    title: string;
+    duration?: string;
+    requestedBy: string;
+}
+
+export interface NowPlaying {
+    title: string;
+    url: string;
+    requestedBy: string;
+    startedAt: number;
+}
+
+@Injectable()
+export class MusicBotService implements OnModuleInit {
+    private readonly logger = new Logger(MusicBotService.name);
+
+    // Müzik kuyruğu
+    private queue: QueueItem[] = [];
+    private nowPlaying: NowPlaying | null = null;
+    private isPaused = false;
+
+    // mediasoup
+    private plainTransport: mediasoupTypes.PlainTransport | null = null;
+    private audioProducer: mediasoupTypes.Producer | null = null;
+
+    // FFmpeg process
+    private ffmpegProcess: ChildProcess | null = null;
+    private ytdlpProcess: ChildProcess | null = null;
+
+    // Temp directory
+    private readonly tempDir = '/tmp/music-bot';
+
+    // Event callback (gateway'e bildirim için)
+    private onNowPlayingChange: ((data: any) => void) | null = null;
+    private onQueueChange: ((data: any) => void) | null = null;
+
+    constructor(private readonly mediasoupService: MediasoupService) { }
+
+    async onModuleInit() {
+        // Temp dizini oluştur
+        if (!fs.existsSync(this.tempDir)) {
+            fs.mkdirSync(this.tempDir, { recursive: true });
+        }
+        this.logger.log('🎵 MusicBotService başlatıldı');
+    }
+
+    /**
+     * Event callback'lerini ayarla
+     */
+    setCallbacks(
+        onNowPlayingChange: (data: any) => void,
+        onQueueChange: (data: any) => void,
+    ) {
+        this.onNowPlayingChange = onNowPlayingChange;
+        this.onQueueChange = onQueueChange;
+    }
+
+    /**
+     * PlainTransport + Producer oluştur
+     * Bu sadece bir kez yapılır, sonra FFmpeg çıkışı buraya bağlanır
+     */
+    private async ensureTransport(): Promise<boolean> {
+        if (this.plainTransport && this.audioProducer) {
+            return true;
+        }
+
+        const router = this.mediasoupService.getRouter();
+        if (!router) {
+            this.logger.error('❌ Router bulunamadı!');
+            return false;
+        }
+
+        try {
+            // PlainTransport oluştur (FFmpeg'den RTP alacak)
+            this.plainTransport = await router.createPlainTransport({
+                listenInfo: {
+                    protocol: 'udp',
+                    ip: '127.0.0.1',
+                },
+                rtcpMux: true,
+                comedia: true, // FFmpeg bağlandığında otomatik remote IP/port ayarlanır
+            });
+
+            this.logger.log(`🚇 PlainTransport oluşturuldu - port: ${this.plainTransport.tuple.localPort}`);
+
+            // Audio producer oluştur
+            this.audioProducer = await this.plainTransport.produce({
+                kind: 'audio',
+                rtpParameters: {
+                    codecs: [
+                        {
+                            mimeType: 'audio/opus',
+                            payloadType: 101,
+                            clockRate: 48000,
+                            channels: 2,
+                            parameters: {
+                                minptime: 10,
+                                useinbandfec: 1,
+                            },
+                        },
+                    ],
+                    encodings: [{ ssrc: 11111111 }],
+                },
+                appData: { isBot: true, botType: 'music' },
+            });
+
+            this.logger.log(`🎵 Audio producer oluşturuldu: ${this.audioProducer.id}`);
+            return true;
+        } catch (error) {
+            this.logger.error(`❌ Transport/Producer oluşturma hatası: ${error.message}`);
+            return false;
+        }
+    }
+
+    /**
+     * YouTube URL'den şarkı bilgisi al
+     */
+    private getVideoInfo(url: string): Promise<{ title: string; duration?: string }> {
+        return new Promise((resolve, reject) => {
+            const ytdlp = spawn('yt-dlp', [
+                '--print', '%(title)s',
+                '--print', '%(duration_string)s',
+                '--no-playlist',
+                url,
+            ]);
+
+            let output = '';
+            let errorOutput = '';
+
+            ytdlp.stdout.on('data', (data) => {
+                output += data.toString();
+            });
+
+            ytdlp.stderr.on('data', (data) => {
+                errorOutput += data.toString();
+            });
+
+            ytdlp.on('close', (code) => {
+                if (code !== 0) {
+                    reject(new Error(`yt-dlp info hatası: ${errorOutput}`));
+                    return;
+                }
+                const lines = output.trim().split('\n');
+                resolve({
+                    title: lines[0] || 'Bilinmeyen Şarkı',
+                    duration: lines[1] || undefined,
+                });
+            });
+        });
+    }
+
+    /**
+     * Şarkı çal
+     */
+    async play(url: string, requestedBy: string): Promise<{ success: boolean; message: string; title?: string }> {
+        try {
+            // Şarkı bilgisi al
+            const info = await this.getVideoInfo(url);
+            this.logger.log(`🎵 Şarkı bulundu: ${info.title}`);
+
+            const item: QueueItem = {
+                url,
+                title: info.title,
+                duration: info.duration,
+                requestedBy,
+            };
+
+            // Eğer şu an çalan bir şey yoksa direkt başlat
+            if (!this.nowPlaying) {
+                await this.startPlaying(item);
+                return { success: true, message: `🎵 Çalınıyor: **${info.title}**`, title: info.title };
+            } else {
+                // Kuyruğa ekle
+                this.queue.push(item);
+                this.onQueueChange?.({ queue: this.getQueue() });
+                return {
+                    success: true,
+                    message: `📋 Kuyruğa eklendi (#${this.queue.length}): **${info.title}**`,
+                    title: info.title,
+                };
+            }
+        } catch (error) {
+            this.logger.error(`❌ Play hatası: ${error.message}`);
+            return { success: false, message: `❌ Şarkı çalınamadı: ${error.message}` };
+        }
+    }
+
+    /**
+     * Şarkıyı başlat (FFmpeg + yt-dlp pipeline)
+     */
+    private async startPlaying(item: QueueItem): Promise<void> {
+        // Varsa eski processleri kapat
+        this.killProcesses();
+
+        // Transport hazırla
+        const ready = await this.ensureTransport();
+        if (!ready || !this.plainTransport) {
+            throw new Error('Transport hazırlanamadı');
+        }
+
+        const rtpPort = this.plainTransport.tuple.localPort;
+
+        this.nowPlaying = {
+            title: item.title,
+            url: item.url,
+            requestedBy: item.requestedBy,
+            startedAt: Date.now(),
+        };
+
+        // yt-dlp → FFmpeg pipeline
+        // yt-dlp ses stream'ini stdout'a yazar, FFmpeg bunu RTP'ye çevirir
+        this.ytdlpProcess = spawn('yt-dlp', [
+            '-f', 'bestaudio',
+            '-o', '-', // stdout'a yaz
+            '--no-playlist',
+            item.url,
+        ]);
+
+        this.ffmpegProcess = spawn('ffmpeg', [
+            '-i', 'pipe:0',        // stdin'den oku (yt-dlp çıkışı)
+            '-map', '0:a:0',       // Sadece ses
+            '-acodec', 'libopus',  // Opus codec
+            '-ab', '128k',         // 128kbps bitrate
+            '-ac', '2',            // Stereo
+            '-ar', '48000',        // 48kHz sample rate
+            '-f', 'rtp',           // RTP format
+            '-ssrc', '11111111',   // Producer'daki SSRC ile aynı
+            '-payload_type', '101', // Producer'daki payload type ile aynı
+            `rtp://127.0.0.1:${rtpPort}`,
+        ]);
+
+        // yt-dlp stdout → FFmpeg stdin
+        this.ytdlpProcess.stdout?.pipe(this.ffmpegProcess.stdin!);
+
+        // Log
+        this.ytdlpProcess.stderr?.on('data', (data) => {
+            // yt-dlp progress (çok fazla log olmasın)
+        });
+
+        this.ffmpegProcess.stderr?.on('data', (data) => {
+            const msg = data.toString();
+            if (msg.includes('Error') || msg.includes('error')) {
+                this.logger.error(`FFmpeg: ${msg}`);
+            }
+        });
+
+        // Şarkı bittiğinde sıradakini çal
+        this.ffmpegProcess.on('close', (code) => {
+            this.logger.log(`🎵 FFmpeg kapandı (code: ${code})`);
+            if (code === 0 || code === 255) {
+                // Normal bitiş - sıradaki şarkıyı çal
+                this.playNext();
+            }
+        });
+
+        this.ytdlpProcess.on('error', (err) => {
+            this.logger.error(`❌ yt-dlp hatası: ${err.message}`);
+        });
+
+        this.ffmpegProcess.on('error', (err) => {
+            this.logger.error(`❌ FFmpeg hatası: ${err.message}`);
+        });
+
+        // Broadcast: Şu an çalan
+        this.onNowPlayingChange?.({
+            nowPlaying: this.nowPlaying,
+            producerId: this.audioProducer?.id,
+        });
+
+        this.logger.log(`🎵 Çalınıyor: ${item.title} → RTP port ${rtpPort}`);
+    }
+
+    /**
+     * Sıradaki şarkıya geç
+     */
+    private async playNext(): Promise<void> {
+        if (this.queue.length > 0) {
+            const nextItem = this.queue.shift()!;
+            this.onQueueChange?.({ queue: this.getQueue() });
+            await this.startPlaying(nextItem);
+        } else {
+            // Kuyruk boş
+            this.nowPlaying = null;
+            this.onNowPlayingChange?.({ nowPlaying: null, producerId: null });
+            this.logger.log('🎵 Kuyruk bitti');
+        }
+    }
+
+    /**
+     * Sıradaki şarkıya atla
+     */
+    async skip(requestedBy: string): Promise<string> {
+        if (!this.nowPlaying) {
+            return '❌ Çalan bir şarkı yok!';
+        }
+        const skipped = this.nowPlaying.title;
+        this.killProcesses();
+        await this.playNext();
+        return `⏭️ Atlandı: **${skipped}**`;
+    }
+
+    /**
+     * Durdur
+     */
+    stop(): string {
+        if (!this.nowPlaying) {
+            return '❌ Çalan bir şarkı yok!';
+        }
+        const stopped = this.nowPlaying.title;
+        this.killProcesses();
+        this.nowPlaying = null;
+        this.queue = [];
+        this.onNowPlayingChange?.({ nowPlaying: null, producerId: null });
+        this.onQueueChange?.({ queue: [] });
+        return `⏹️ Durduruldu: **${stopped}** (Kuyruk temizlendi)`;
+    }
+
+    /**
+     * Duraklat / Devam
+     */
+    pause(): string {
+        if (!this.nowPlaying) {
+            return '❌ Çalan bir şarkı yok!';
+        }
+        if (this.ffmpegProcess) {
+            if (this.isPaused) {
+                // Devam et - SIGCONT
+                this.ffmpegProcess.kill('SIGCONT');
+                this.ytdlpProcess?.kill('SIGCONT');
+                this.isPaused = false;
+                return `▶️ Devam: **${this.nowPlaying.title}**`;
+            } else {
+                // Duraklat - SIGSTOP
+                this.ffmpegProcess.kill('SIGSTOP');
+                this.ytdlpProcess?.kill('SIGSTOP');
+                this.isPaused = true;
+                return `⏸️ Duraklatıldı: **${this.nowPlaying.title}**`;
+            }
+        }
+        return '❌ Process bulunamadı!';
+    }
+
+    /**
+     * Kuyruk listesi
+     */
+    getQueue(): { nowPlaying: NowPlaying | null; queue: QueueItem[] } {
+        return {
+            nowPlaying: this.nowPlaying,
+            queue: [...this.queue],
+        };
+    }
+
+    /**
+     * Producer ID (client'lar consume etmek için)
+     */
+    getProducerId(): string | null {
+        return this.audioProducer?.id ?? null;
+    }
+
+    /**
+     * Çalıyor mu?
+     */
+    isPlaying(): boolean {
+        return this.nowPlaying !== null && !this.isPaused;
+    }
+
+    /**
+     * Process'leri temizle
+     */
+    private killProcesses(): void {
+        if (this.ffmpegProcess && !this.ffmpegProcess.killed) {
+            this.ffmpegProcess.kill('SIGKILL');
+            this.ffmpegProcess = null;
+        }
+        if (this.ytdlpProcess && !this.ytdlpProcess.killed) {
+            this.ytdlpProcess.kill('SIGKILL');
+            this.ytdlpProcess = null;
+        }
+        this.isPaused = false;
+    }
+}

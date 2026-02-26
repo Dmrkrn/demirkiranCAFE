@@ -9,6 +9,7 @@ import { TitleBar } from './components/TitleBar';
 import { PingMeter } from './components/PingMeter';
 import { SettingsPanel, loadKeybinds } from './components/SettingsPanel';
 import UpdateNotifier from './components/UpdateNotifier';
+import { MusicPlayer } from './components/MusicPlayer';
 import { playMuteSound, playUnmuteSound, playDeafenSound, playUndeafenSound, playJoinSound, playLeaveSound } from './utils/sounds';
 import EmojiPicker, { EmojiClickData, Theme, EmojiStyle } from 'emoji-picker-react';
 import { LinkifiedText } from './components/LinkifiedText';
@@ -933,6 +934,15 @@ function App() {
                                 </button>
                             </div>
                         </div>
+
+                        {/* Müzik Botu */}
+                        {isJoined && (
+                            <MusicPlayer
+                                socket={socket}
+                                request={request}
+                                consumeProducer={consumeProducer}
+                            />
+                        )}
 
                         <div className="users-section">
                             <h3>Kullanıcılar</h3>

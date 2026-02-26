@@ -1,0 +1,257 @@
+/* ===========================
+   MusicPlayer Styles
+   =========================== */
+
+.music-player {
+    background: linear-gradient(135deg, rgba(88, 28, 135, 0.3), rgba(30, 58, 138, 0.3));
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 12px;
+    margin: 8px 12px;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.music-player:hover {
+    border-color: rgba(139, 92, 246, 0.5);
+}
+
+/* Compact Bar */
+.music-player-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    cursor: pointer;
+    gap: 8px;
+    min-height: 40px;
+}
+
+.music-player-icon {
+    font-size: 1.2rem;
+    flex-shrink: 0;
+}
+
+.music-icon {
+    display: inline-block;
+}
+
+.music-icon.spinning {
+    animation: musicSpin 2s linear infinite;
+}
+
+@keyframes musicSpin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.music-player-info {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.music-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e0e0ff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.music-requester {
+    font-size: 0.7rem;
+    color: rgba(139, 92, 246, 0.8);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.music-idle {
+    font-size: 0.8rem;
+    color: rgba(200, 200, 220, 0.5);
+}
+
+/* Mini Controls */
+.music-controls-mini {
+    display: flex;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+.music-controls-mini button {
+    background: none;
+    border: none;
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: background 0.2s;
+}
+
+.music-controls-mini button:hover {
+    background: rgba(139, 92, 246, 0.3);
+}
+
+/* Expanded Panel */
+.music-player-expanded {
+    padding: 0 12px 12px;
+    border-top: 1px solid rgba(139, 92, 246, 0.15);
+    animation: slideDown 0.2s ease;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* URL Input */
+.music-input-row {
+    display: flex;
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.music-input-row input {
+    flex: 1;
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(139, 92, 246, 0.3);
+    border-radius: 8px;
+    padding: 6px 10px;
+    color: #fff;
+    font-size: 0.75rem;
+    outline: none;
+    transition: border-color 0.2s;
+}
+
+.music-input-row input:focus {
+    border-color: rgba(139, 92, 246, 0.7);
+}
+
+.music-input-row input::placeholder {
+    color: rgba(200, 200, 220, 0.4);
+}
+
+.music-input-row button {
+    background: rgba(139, 92, 246, 0.4);
+    border: none;
+    border-radius: 8px;
+    padding: 6px 12px;
+    color: #fff;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: background 0.2s;
+}
+
+.music-input-row button:hover:not(:disabled) {
+    background: rgba(139, 92, 246, 0.6);
+}
+
+.music-input-row button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* Status Message */
+.music-status {
+    font-size: 0.75rem;
+    color: rgba(139, 92, 246, 0.9);
+    padding: 6px 0;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+/* Now Playing */
+.music-now-playing {
+    background: rgba(139, 92, 246, 0.1);
+    border-radius: 8px;
+    padding: 8px 10px;
+    margin-top: 8px;
+}
+
+.music-np-label {
+    font-size: 0.65rem;
+    color: rgba(139, 92, 246, 0.7);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.music-np-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #e0e0ff;
+}
+
+.music-np-by {
+    font-size: 0.7rem;
+    color: rgba(200, 200, 220, 0.5);
+    margin-top: 2px;
+}
+
+/* Queue */
+.music-queue {
+    margin-top: 8px;
+}
+
+.music-queue-label {
+    font-size: 0.7rem;
+    color: rgba(200, 200, 220, 0.6);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+
+.music-queue-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+}
+
+.music-queue-item:hover {
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.queue-index {
+    color: rgba(139, 92, 246, 0.6);
+    font-weight: 600;
+    flex-shrink: 0;
+    width: 18px;
+}
+
+.queue-title {
+    color: #d0d0ee;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.queue-duration {
+    color: rgba(200, 200, 220, 0.4);
+    font-size: 0.7rem;
+    flex-shrink: 0;
+}

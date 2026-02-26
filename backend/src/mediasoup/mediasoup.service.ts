@@ -189,6 +189,14 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
+     * Router instance'ını döndürür
+     * MusicBot gibi servisler PlainTransport oluşturmak için kullanır
+     */
+    getRouter(): mediasoupTypes.Router | null {
+        return this.router ?? null;
+    }
+
+    /**
      * WebRTC Transport oluşturur
      * --------------------------
      * Transport, client ile sunucu arasındaki "boru hattı"dır.
