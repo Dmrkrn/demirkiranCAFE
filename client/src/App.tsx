@@ -1113,9 +1113,9 @@ function App() {
                                 <div className="room-content">
                                     {/* Sol: Video Grid */}
                                     <div className="video-section">
-                                        <div className={`video-grid ${(isSharing && screenStream) || consumers.find(c => c.appData?.isScreen) ? 'presentation-active' : ''}`}>
+                                        <div className={`video-grid ${(isSharing && screenStream) || consumers.find(c => c.appData?.isScreen) || availableScreenShares.length > 0 ? 'presentation-active' : ''}`}>
                                             {/* Sunum Modu Aktifse */}
-                                            {((isSharing && screenStream) || consumers.find(c => c.appData?.isScreen)) ? (
+                                            {((isSharing && screenStream) || consumers.find(c => c.appData?.isScreen) || availableScreenShares.length > 0) ? (
                                                 <>
                                                     {/* Üst Bar: Katılımcılar */}
                                                     <div className="participants-top-bar">
@@ -1804,14 +1804,14 @@ function SidebarPeer({
     onVolumeChange: (id: string, vol: number) => void
 }) {
     const peerConsumers = consumers.filter(c => c.peerId === peer.id);
-    const hasVideo = peerConsumers.some(c => c.kind === 'video');
-    const audioConsumer = peerConsumers.find(c => c.kind === 'audio');
+    const hasVideo = peerConsumers.some(c => c.kind === 'video' && !c.appData?.isScreen);
+    const audioConsumer = peerConsumers.find(c => c.kind === 'audio' && !c.appData?.isScreen);
 
     const rawIsSpeaking = useAudioLevel(audioConsumer?.stream || null);
     const isSpeaking = rawIsSpeaking && !peer.isMicMuted;
 
     const [showVolume, setShowVolume] = useState(false);
-    const hasScreen = peerConsumers.some(c => c.stream?.getVideoTracks()[0]?.label?.toLowerCase().includes('screen') || c.appData?.source === 'screen');
+    const hasScreen = peerConsumers.some(c => c.appData?.isScreen);
 
     return (
         <div
