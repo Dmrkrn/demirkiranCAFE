@@ -79,6 +79,8 @@ function App() {
     const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
     // Aktif Hoparlör ID
     const [activeSpeakerId, setActiveSpeakerId] = useState<string>('');
+    // Kamera durumu (local state - useMediaDevices'tan bağımsız)
+    const [cameraOn, setCameraOn] = useState(false);
 
     // Context Menu State (Sağ Tık Menüsü)
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, peerId: string } | null>(null);
@@ -144,11 +146,9 @@ function App() {
     const { isConnected, clientId, request, emit, onChatMessage, peers, fetchPeers, socket, sendStatusUpdate } = useSocket();
     const {
         localStream,
-        videoEnabled,
         audioEnabled,
         startMedia,
         stopMedia,
-        toggleVideo,
         toggleAudio,
         changeAudioInput,
         changeVideoInput
@@ -256,6 +256,8 @@ function App() {
     // Screen Share Producer ID'lerini takip et (Kapatmak için)
     const screenProducerIdRef = useRef<string | null>(null);
     const screenAudioProducerIdRef = useRef<string | null>(null);
+    // Camera Producer ID (Kamerayı aç/kapa için)
+    const cameraProducerIdRef = useRef<string | null>(null);
 
     // Ekran paylaşımı durduğunda producer'ları kapat (UI Cleanup Bug Fix)
     useEffect(() => {
@@ -688,26 +690,44 @@ function App() {
         closeAll();
         stopMedia();
         stopScreenShare();
+        setCameraOn(false);
+        cameraProducerIdRef.current = null;
         setJoiningStatus('idle');
         console.log('👋 Odadan ayrıldın');
     };
 
     /**
      * Kamera Toggle
-     * Kamera kapalıysa: kamerayı aç ve produce et
-     * Kamera açıksa: toggle et (track'i disable/enable yap)
+     * Kamera kapalıysa: kamerayı aç, produce et, videoEnabled = true
+     * Kamera açıksa: producer'ı kapat, track'i durdur, videoEnabled = false
      */
     const handleCameraToggle = async () => {
-        if (!videoEnabled && !localStream?.getVideoTracks().length) {
-            // İlk kez kamera açılıyor - getUserMedia ile video al
+        if (!cameraOn) {
+            // KAMERAYI AÇ
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        frameRate: { ideal: 30 },
+                    }
+                });
                 const videoTrack = stream.getVideoTracks()[0];
                 if (videoTrack) {
                     // Mevcut stream'e ekle
-                    localStream?.addTrack(videoTrack);
+                    if (localStream) {
+                        localStream.addTrack(videoTrack);
+                    }
+                    // Video elementine bağla
+                    if (localVideoRef.current && localStream) {
+                        localVideoRef.current.srcObject = localStream;
+                    }
                     // Produce et
-                    await produceVideo(videoTrack);
+                    const producerId = await produceVideo(videoTrack);
+                    if (producerId) {
+                        cameraProducerIdRef.current = producerId;
+                    }
+                    setCameraOn(true);
                     console.log('📷 Kamera açıldı ve produce edildi');
                 }
             } catch (error) {
@@ -715,8 +735,23 @@ function App() {
                 alert('Kamera açılamadı. İzin verildi mi?');
             }
         } else {
-            // Normal toggle
-            toggleVideo();
+            // KAMERAYI KAPAT
+            // 1. Producer'ı kapat (karşı taraf avatar görsün)
+            if (cameraProducerIdRef.current) {
+                closeProducer(cameraProducerIdRef.current);
+                cameraProducerIdRef.current = null;
+                console.log('🛑 Kamera producer kapatıldı');
+            }
+            // 2. Video track'i durdur (kamera LED'i sönsün)
+            if (localStream) {
+                const videoTracks = localStream.getVideoTracks();
+                videoTracks.forEach(track => {
+                    track.stop();
+                    localStream.removeTrack(track);
+                    console.log('🛑 Video track durduruldu ve kaldırıldı');
+                });
+            }
+            setCameraOn(false);
         }
     };
 
@@ -1126,9 +1161,9 @@ function App() {
                                                                 autoPlay
                                                                 muted
                                                                 playsInline
-                                                                className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
+                                                                className={`video-element ${!cameraOn ? 'hidden' : ''}`}
                                                             />
-                                                            {!videoEnabled && (
+                                                            {!cameraOn && (
                                                                 <div className="video-placeholder-content">
                                                                     <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
                                                                     <div className="placeholder-name">{username}</div>
@@ -1329,9 +1364,9 @@ function App() {
                                                             autoPlay
                                                             muted
                                                             playsInline
-                                                            className={`video-element ${!videoEnabled ? 'hidden' : ''}`}
+                                                            className={`video-element ${!cameraOn ? 'hidden' : ''}`}
                                                         />
-                                                        {!videoEnabled && (
+                                                        {!cameraOn && (
                                                             <div className="video-placeholder-content">
                                                                 <Avatar name={username} size="xl" isSpeaking={isSpeaking} />
                                                                 <div className="placeholder-name">{username}</div>
@@ -1594,11 +1629,11 @@ function App() {
                                     <div className="control-buttons">
 
                                         <button
-                                            className={`control-button camera-button ${!videoEnabled ? 'muted' : ''}`}
+                                            className={`control-button camera-button ${!cameraOn ? 'muted' : ''}`}
                                             onClick={handleCameraToggle}
-                                            title={videoEnabled ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
+                                            title={cameraOn ? 'Kamerayı Kapat' : 'Kamerayı Aç'}
                                         >
-                                            {videoEnabled ? '📷' : '📷'}
+                                            {cameraOn ? '📷' : '📷'}
                                         </button>
                                         <button
                                             className={`control-button screen-button ${isSharing ? 'active' : ''}`}
@@ -1622,7 +1657,7 @@ function App() {
                                     <AudioPlayer
                                         key={consumer.id}
                                         stream={consumer.stream}
-                                        muted={isDeafened}
+                                        muted={isDeafened || isSharing}
                                         volume={userVolumes[consumer.peerId] ?? 100}
                                         speakerId={activeSpeakerId}
                                     />
