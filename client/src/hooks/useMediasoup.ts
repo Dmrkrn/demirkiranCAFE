@@ -64,11 +64,12 @@ interface UseMediasoupReturn {
     loadDevice: () => Promise<boolean>;
     createTransports: () => Promise<boolean>;
     produceVideo: (track: MediaStreamTrack, appData?: any) => Promise<string | null>;
-    produceAudio: (track: MediaStreamTrack) => Promise<string | null>;
+    produceAudio: (track: MediaStreamTrack, appData?: any) => Promise<string | null>;
     consumeAll: () => Promise<void>;
     consumeProducer: (producerId: string) => Promise<void>;
     closeProducer: (producerId: string) => void;
     replaceTrack: (producerId: string, track: MediaStreamTrack) => Promise<boolean>;
+    removeConsumerByProducerId: (producerId: string) => void;
     closeAll: () => void;
 }
 

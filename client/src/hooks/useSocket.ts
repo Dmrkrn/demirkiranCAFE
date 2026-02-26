@@ -14,8 +14,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io, Socket } from 'socket.io-client';
 
-// Sunucu adresi (VPS IP Adresi)
-const SERVER_URL = 'http://157.230.125.137:3000';
+// Sunucu adresi (Nginx Reverse Proxy üzerinden)
+const SERVER_URL = 'https://cafe.cagridemirkiran.com';
 
 interface ChatMessage {
     id: string;
@@ -38,7 +38,7 @@ interface UseSocketReturn {
     onChatMessage: (callback: (msg: ChatMessage) => void) => () => void;
 
     // Users
-    peers: Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean; roomId?: string }>;
+    peers: Array<{ id: string; username: string; deviceId?: string; isMicMuted?: boolean; isDeafened?: boolean; roomId?: string }>;
     fetchPeers: () => Promise<void>;
     // updatePeerStatus sadece local state'i değil, sunucuyu da güncellesin diye ismini değiştirelim veya yeni metod ekleyelim
     // conflict olmaması için: sendStatusUpdate diyelim
@@ -51,7 +51,7 @@ export function useSocket(): UseSocketReturn {
     const [clientId, setClientId] = useState<string | null>(null);
 
     // Peer listesi
-    const [peers, setPeers] = useState<Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean; roomId?: string }>>([]);
+    const [peers, setPeers] = useState<Array<{ id: string; username: string; deviceId?: string; isMicMuted?: boolean; isDeafened?: boolean; roomId?: string }>>([]);
 
     /**
      * Peer durumunu güncelle (App.tsx'ten çağrılacak)
@@ -97,18 +97,18 @@ export function useSocket(): UseSocketReturn {
         });
 
         // Yeni kullanıcı katıldığında (veya isim/oda güncellediğinde)
-        socket.on('peer-joined', (data: { peerId: string; username: string; roomId?: string }) => {
+        socket.on('peer-joined', (data: { peerId: string; username: string; deviceId?: string; roomId?: string }) => {
             console.log('👤 Yeni kullanıcı katıldı/güncellendi:', data.peerId, data.username, data.roomId);
             setPeers((prev) => {
                 const existingIndex = prev.findIndex(p => p.id === data.peerId);
                 if (existingIndex !== -1) {
                     // Varsa güncelle
                     const newPeers = [...prev];
-                    newPeers[existingIndex] = { ...newPeers[existingIndex], id: data.peerId, username: data.username, roomId: data.roomId };
+                    newPeers[existingIndex] = { ...newPeers[existingIndex], id: data.peerId, username: data.username, deviceId: data.deviceId, roomId: data.roomId };
                     return newPeers;
                 }
                 // Yoksa ekle
-                return [...prev, { id: data.peerId, username: data.username, roomId: data.roomId }];
+                return [...prev, { id: data.peerId, username: data.username, deviceId: data.deviceId, roomId: data.roomId }];
             });
         });
 
@@ -185,7 +185,7 @@ export function useSocket(): UseSocketReturn {
      */
     const fetchPeers = useCallback(async () => {
         try {
-            const response = await request<{ users: Array<{ id: string; username: string; isMicMuted?: boolean; isDeafened?: boolean }> }, any>('getUsers');
+            const response = await request<{ users: Array<{ id: string; username: string; deviceId?: string; isMicMuted?: boolean; isDeafened?: boolean }> }, any>('getUsers');
             if (response && response.users) {
                 setPeers(response.users);
             }

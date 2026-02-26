@@ -31,9 +31,20 @@ import './styles/App.css';
 function App() {
     const [username, setUsername] = useState('');
     const [roomPassword, setRoomPassword] = useState('');
-    const [selectedRoom, setSelectedRoom] = useState<'main' | 'dev'>('main'); // Oda seçimi
+    const [selectedRoom, setSelectedRoom] = useState<'main' | 'side' | 'dev'>('main'); // Oda seçimi
     const [joiningStatus, setJoiningStatus] = useState<'idle' | 'connecting' | 'joined'>('idle');
     const isJoined = joiningStatus === 'joined'; // Derived state for backward compatibility
+    const lastPasswordRef = useRef<string>(''); // Son başarılı şifreyi sakla
+
+    // Cihaz UUID - ilk açılışta üretilir, her oturumda aynı kalır
+    const [deviceId] = useState<string>(() => {
+        let id = localStorage.getItem('demirkiran-device-id');
+        if (!id) {
+            id = crypto.randomUUID();
+            localStorage.setItem('demirkiran-device-id', id);
+        }
+        return id;
+    });
     const [showSettings, setShowSettings] = useState(false);
     const [showScreenPicker, setShowScreenPicker] = useState(false);
     const [isDeafened, setIsDeafened] = useState(false); // Restore isDeafened
@@ -64,7 +75,7 @@ function App() {
         }
     }, []);
 
-    // Kullanıcı Ses Seviyeleri (0-100)
+    // Kullanıcı Ses Seviyeleri (0-100) - peerId -> volume
     const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
     // Aktif Hoparlör ID
     const [activeSpeakerId, setActiveSpeakerId] = useState<string>('');
@@ -80,11 +91,31 @@ function App() {
     }, []);
 
     // Oda Değiştirme Fonksiyonu
-    const handleSwitchRoom = async (targetRoom: 'main' | 'dev') => {
+    const handleSwitchRoom = async (targetRoom: 'main' | 'side' | 'dev') => {
         // Zaten o odadaysak ve bağlıysak işlem yapma
         if (targetRoom === selectedRoom && joiningStatus === 'joined') return;
 
         console.log(`🔄 Odaya geçiş hazırlanıyor: ${targetRoom}`);
+
+        // Eğer zaten bir odada ise: otomatik geçiş yap
+        if (joiningStatus === 'joined' && lastPasswordRef.current) {
+            const savedPassword = lastPasswordRef.current;
+
+            // Mevcut bağlantıyı temizle
+            closeAll();
+            stopMedia();
+            stopScreenShare();
+            setJoiningStatus('connecting'); // Loading göster, login ekranını değil
+
+            // Yeni odaya otomatik katıl
+            setSelectedRoom(targetRoom);
+
+            // Küçük bir gecikme ile yeni odaya katıl (state güncellemesi için)
+            setTimeout(() => {
+                handleJoinRoom(targetRoom, savedPassword);
+            }, 100);
+            return;
+        }
 
         // 1. Hedef odayı seç
         setSelectedRoom(targetRoom);
@@ -594,7 +625,8 @@ function App() {
             const userResponse = await request('setUsername', {
                 username,
                 password: passwordToUse,
-                roomId: roomIdToJoin
+                roomId: roomIdToJoin,
+                deviceId
             }) as { success: boolean; error?: string };
 
             if (!userResponse || !userResponse.success) {
@@ -625,6 +657,7 @@ function App() {
             await consumeAll();
 
             setJoiningStatus('joined');
+            lastPasswordRef.current = passwordToUse; // Şifreyi sakla (oda geçişi için)
             console.log('✅ Odaya başarıyla katıldın!');
 
             // Remember Me Logic
@@ -751,12 +784,46 @@ function App() {
     };
 
     // Kullanıcı ses seviyesini değiştir
+    // Kullanıcı ses seviyesini değiştir ve localStorage'a kaydet
     const handleVolumeChange = (peerId: string, volume: number) => {
         setUserVolumes(prev => ({
             ...prev,
             [peerId]: volume
         }));
+
+        // DeviceId'ye göre localStorage'a kaydet (oturum ötekinde de geçerli olsun)
+        const peer = peers.find(p => p.id === peerId);
+        const peerKey = peer?.deviceId || peer?.username;
+        if (peerKey) {
+            try {
+                const saved = JSON.parse(localStorage.getItem('demirkiran-user-volumes') || '{}');
+                saved[peerKey] = volume;
+                localStorage.setItem('demirkiran-user-volumes', JSON.stringify(saved));
+            } catch (e) {
+                console.error('Volume kaydetme hatası:', e);
+            }
+        }
     };
+
+    // Peer katıldığında kaydedilmiş ses seviyesini geri yükle
+    useEffect(() => {
+        if (peers.length === 0) return;
+        try {
+            const saved = JSON.parse(localStorage.getItem('demirkiran-user-volumes') || '{}');
+            const updates: Record<string, number> = {};
+            peers.forEach(peer => {
+                const peerKey = peer.deviceId || peer.username;
+                if (peerKey && saved[peerKey] !== undefined && userVolumes[peer.id] === undefined) {
+                    updates[peer.id] = saved[peerKey];
+                }
+            });
+            if (Object.keys(updates).length > 0) {
+                setUserVolumes(prev => ({ ...prev, ...updates }));
+            }
+        } catch (e) {
+            console.error('Volume yükleme hatası:', e);
+        }
+    }, [peers]);
 
     return (
         <div className="app-container">
@@ -787,7 +854,7 @@ function App() {
 
                         <div className="room-info">
                             <div className="room-name">
-                                {selectedRoom === 'main' ? 'Ana Oda' : 'Geliştirme Odası'}
+                                {selectedRoom === 'main' ? 'Ana Oda' : selectedRoom === 'side' ? 'Yan Oda' : 'Geliştirme Odası'}
                             </div>
                             <div className="room-status">
                                 {isConnected ? (
@@ -809,11 +876,25 @@ function App() {
                                     🏠 Ana Oda
                                 </button>
                                 <button
+                                    className={`room-btn ${selectedRoom === 'side' ? 'active' : ''}`}
+                                    onClick={() => handleSwitchRoom('side')}
+                                    style={{ padding: '5px', fontSize: '0.8rem', cursor: 'pointer', background: selectedRoom === 'side' ? '#2563eb' : '#333', color: 'white', border: 'none', borderRadius: '4px' }}
+                                >
+                                    🚪 Yan Oda
+                                </button>
+                                <button
                                     className={`room-btn ${selectedRoom === 'dev' ? 'active' : ''}`}
                                     onClick={() => handleSwitchRoom('dev')}
                                     style={{ padding: '5px', fontSize: '0.8rem', cursor: 'pointer', background: selectedRoom === 'dev' ? '#2563eb' : '#333', color: 'white', border: 'none', borderRadius: '4px' }}
                                 >
                                     🛠️ Geliştirme Odası
+                                </button>
+                                <button
+                                    className="room-btn"
+                                    onClick={() => window.electronAPI ? window.electronAPI.openExternal('https://seyir.cagridemirkiran.com') : window.open('https://seyir.cagridemirkiran.com', '_blank')}
+                                    style={{ padding: '5px', fontSize: '0.8rem', cursor: 'pointer', background: '#1a5c2a', color: 'white', border: 'none', borderRadius: '4px' }}
+                                >
+                                    🎬 Seyir
                                 </button>
                             </div>
                         </div>
@@ -850,6 +931,46 @@ function App() {
                                     </div>
                                 )}
                                 {peers.filter(p => !p.roomId || p.roomId === 'main').map((peer) => (
+                                    <SidebarPeer
+                                        key={peer.id}
+                                        peer={peer}
+                                        consumers={consumers}
+                                        volume={userVolumes[peer.id] ?? 100}
+                                        onVolumeChange={handleVolumeChange}
+                                    />
+                                ))}
+                            </div>
+
+                            <div className="room-group" style={{ marginTop: '15px' }}>
+                                <h4 style={{ fontSize: '0.8rem', color: '#888', marginBottom: '5px', textTransform: 'uppercase' }}>🚪 Yan Oda</h4>
+                                {isJoined && selectedRoom === 'side' && (
+                                    <div className={`user-item user-self ${isSpeaking ? 'user-speaking-active' : ''}`}>
+                                        <Avatar name={username} size="sm" isSpeaking={isSpeaking} />
+                                        <span className="user-name">{username} (Sen)</span>
+                                        <div className="user-status-icons">
+                                            <button
+                                                className={`status-btn ${!audioEnabled ? 'muted' : ''}`}
+                                                onClick={handleToggleMic}
+                                                title={audioEnabled ? 'Mikrofonu Kapat (M)' : 'Mikrofonu Aç (M)'}
+                                            >
+                                                {audioEnabled ? <MicIcon /> : <MicOffIcon />}
+                                            </button>
+                                            <button
+                                                className={`status-btn ${isDeafened ? 'muted' : ''}`}
+                                                onClick={handleToggleDeafen}
+                                                title={isDeafened ? 'Sesi Aç (D)' : 'Sesi Kapat (D)'}
+                                            >
+                                                {isDeafened ? <HeadphonesOffIcon /> : <HeadphonessIcon />}
+                                            </button>
+                                            {isSharing && (
+                                                <span className="status-icon" title="Ekran Paylaşıyor">
+                                                    🖥️
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                                {peers.filter(p => p.roomId === 'side').map((peer) => (
                                     <SidebarPeer
                                         key={peer.id}
                                         peer={peer}
@@ -915,67 +1036,77 @@ function App() {
                     {/* Ana İçerik */}
                     <main className="main-content">
                         {!isJoined ? (
-                            <div className="connect-screen">
-                                <div className="connect-card">
-                                    <h1>{selectedRoom === 'main' ? 'Ana Oda' : 'Geliştirme Odası'}'na Hoş Geldin!</h1>
-                                    <p>Odaya katılmak için bilgilerini gir</p>
-
-                                    <input
-                                        type="text"
-                                        placeholder="Kullanıcı Adı"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
-                                        className="username-input"
-                                        disabled={joiningStatus === 'connecting'}
-                                    />
-
-                                    <input
-                                        type="password"
-                                        placeholder="Oda Şifresi"
-                                        value={roomPassword}
-                                        onChange={(e) => {
-                                            setRoomPassword(e.target.value);
-                                            if (loginError) setLoginError(null);
-                                        }}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
-                                        className={`username-input password-input ${loginError ? 'input-error' : ''}`}
-                                        disabled={joiningStatus === 'connecting'}
-                                    />
-
-                                    {loginError && (
-                                        <div className="error-message" style={{ color: '#ff4444', marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>
-                                            {loginError}
-                                        </div>
-                                    )}
-
-                                    <div className="remember-me-container">
-                                        <label className="remember-me-label">
-                                            <input
-                                                type="checkbox"
-                                                className="remember-me-checkbox"
-                                                checked={rememberMe}
-                                                onChange={(e) => setRememberMe(e.target.checked)}
-                                            />
-                                            Beni Hatırla
-                                        </label>
+                            joiningStatus === 'connecting' ? (
+                                <div className="connect-screen">
+                                    <div className="connect-card" style={{ textAlign: 'center' }}>
+                                        <div style={{ fontSize: '2rem', marginBottom: '15px', animation: 'spin 1s linear infinite' }}>⚡</div>
+                                        <h2 style={{ margin: 0 }}>Odaya bağlanılıyor...</h2>
+                                        <p style={{ color: '#888', marginTop: '8px' }}>{selectedRoom === 'main' ? 'Ana Oda' : selectedRoom === 'side' ? 'Yan Oda' : 'Geliştirme Odası'}</p>
                                     </div>
-
-                                    <button
-                                        onClick={() => handleJoinRoom()}
-                                        className="connect-button"
-                                        disabled={joiningStatus === 'connecting' || !isConnected}
-                                    >
-                                        {joiningStatus === 'connecting' ? 'Bağlanıyor...' :
-                                            !isConnected ? 'Sunucu Bekleniyor...' : 'Odaya Katıl'}
-                                    </button>
-
-                                    {!isConnected && (
-                                        <p className="warning-text">
-                                            ⚠️ Backend'e bağlanılamıyor. <code>npm run start:dev</code> çalışıyor mu?
-                                        </p>
-                                    )}
                                 </div>
-                            </div>
+                            ) : (
+                                <div className="connect-screen">
+                                    <div className="connect-card">
+                                        <h1>{selectedRoom === 'main' ? 'Ana Oda' : selectedRoom === 'side' ? 'Yan Oda' : 'Geliştirme Odası'}'na Hoş Geldin!</h1>
+                                        <p>Odaya katılmak için bilgilerini gir</p>
+
+                                        <input
+                                            type="text"
+                                            placeholder="Kullanıcı Adı"
+                                            value={username}
+                                            onChange={(e) => setUsername(e.target.value)}
+                                            className="username-input"
+                                            disabled={joiningStatus === 'connecting'}
+                                        />
+
+                                        <input
+                                            type="password"
+                                            placeholder="Oda Şifresi"
+                                            value={roomPassword}
+                                            onChange={(e) => {
+                                                setRoomPassword(e.target.value);
+                                                if (loginError) setLoginError(null);
+                                            }}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
+                                            className={`username-input password-input ${loginError ? 'input-error' : ''}`}
+                                            disabled={joiningStatus === 'connecting'}
+                                        />
+
+                                        {loginError && (
+                                            <div className="error-message" style={{ color: '#ff4444', marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>
+                                                {loginError}
+                                            </div>
+                                        )}
+
+                                        <div className="remember-me-container">
+                                            <label className="remember-me-label">
+                                                <input
+                                                    type="checkbox"
+                                                    className="remember-me-checkbox"
+                                                    checked={rememberMe}
+                                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                                />
+                                                Beni Hatırla
+                                            </label>
+                                        </div>
+
+                                        <button
+                                            onClick={() => handleJoinRoom()}
+                                            className="connect-button"
+                                            disabled={joiningStatus === 'connecting' || !isConnected}
+                                        >
+                                            {joiningStatus === 'connecting' ? 'Bağlanıyor...' :
+                                                !isConnected ? 'Sunucu Bekleniyor...' : 'Odaya Katıl'}
+                                        </button>
+
+                                        {!isConnected && (
+                                            <p className="warning-text">
+                                                ⚠️ Backend'e bağlanılamıyor. <code>npm run start:dev</code> çalışıyor mu?
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                            )
                         ) : (
                             <div className="room-view">
                                 {/* Video ve Chat container - yan yana */}

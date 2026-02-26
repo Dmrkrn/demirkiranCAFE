@@ -380,7 +380,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
     @SubscribeMessage('setUsername')
     handleSetUsername(
         @ConnectedSocket() client: Socket,
-        @MessageBody() data: { username: string; password?: string; roomId?: string },
+        @MessageBody() data: { username: string; password?: string; roomId?: string; deviceId?: string },
     ) {
         const roomId = data.roomId || 'main'; // Varsayılan: Ana Oda
         let requiredPassword = '';
@@ -403,12 +403,17 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         const clientInfo = this.clients.get(client.id);
         if (clientInfo) {
             (clientInfo as any).roomId = roomId; // Type hack, better to update interface
+            (clientInfo as any).deviceId = data.deviceId; // Cihaz UUID
             clientInfo.username = data.username;
 
             // Socket.io odasına katıl
-            // Önceki odalardan çık
+            // Önceki odalardan çık ve o odalardaki kullanıcılara haber ver
             client.rooms.forEach(r => {
-                if (r !== client.id) client.leave(r);
+                if (r !== client.id) {
+                    // Eski odaya "peer-left" gönder (diğer kullanıcılar görsün)
+                    client.to(r).emit('peer-left', { peerId: client.id });
+                    client.leave(r);
+                }
             });
             client.join(roomId);
 
@@ -418,6 +423,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             client.to(roomId).emit('peer-joined', {
                 peerId: client.id,
                 username: data.username,
+                deviceId: data.deviceId,
                 roomId: roomId
             });
         }
@@ -481,6 +487,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             .map(([id, info]) => ({
                 id,
                 username: info.username || 'Anonim',
+                deviceId: (info as any).deviceId,
                 roomId: (info as any).roomId || 'main',
                 isMicMuted: (info as any).isMicMuted,
                 isDeafened: (info as any).isDeafened,
