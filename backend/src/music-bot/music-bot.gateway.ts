@@ -13,8 +13,9 @@ import { MusicBotService } from './music-bot.service';
  * MusicBotGateway
  * ===============
  * 
- * Müzik botu socket event'lerini yönetir.
- * Chat komutları veya direkt socket event'leri ile kontrol edilir.
+ * Discord tarzı müzik botu gateway'i.
+ * Bot, sanal bir kullanıcı olarak ses kanalına katılır.
+ * Producer'ı normal signaling akışıyla tüm client'lara dağıtılır.
  */
 @WebSocketGateway({
     cors: { origin: '*' },
@@ -28,80 +29,59 @@ export class MusicBotGateway implements OnModuleInit {
     constructor(private readonly musicBotService: MusicBotService) { }
 
     onModuleInit() {
-        // Event callback'lerini ayarla
         this.musicBotService.setCallbacks(
-            // onNowPlayingChange
+            // onNowPlayingChange - şu an çalan bilgisi
             (data) => {
                 this.server.emit('music-now-playing', data);
-                this.logger.log(`🎵 Now Playing broadcast: ${data.nowPlaying?.title || 'Yok'}`);
+                this.logger.log(`🎵 Now Playing: ${data.nowPlaying?.title || 'Yok'}`);
             },
-            // onQueueChange
+            // onQueueChange - kuyruk değişti
             (data) => {
                 this.server.emit('music-queue-update', data);
+            },
+            // onProducerReady - bot producer oluşturuldu → tüm client'lara bildir
+            // Bu sayede normal signaling akışıyla auto-consume olur (Discord gibi)
+            (producerId: string) => {
+                this.server.emit('new-producer', {
+                    producerId,
+                    peerId: 'music-bot',
+                    kind: 'audio',
+                    appData: { isBot: true, botType: 'music' },
+                });
+                this.logger.log(`🎵 Bot producer broadcast edildi: ${producerId}`);
             },
         );
         this.logger.log('🎵 MusicBotGateway hazır');
     }
 
-    /**
-     * Şarkı çal
-     * Data: { url: string }
-     */
     @SubscribeMessage('music-play')
     async handlePlay(
         @ConnectedSocket() client: Socket,
         @MessageBody() data: { url: string },
     ) {
         const username = (client as any).username || 'Anonim';
-        this.logger.log(`🎵 Play isteği: ${data.url} (${username})`);
-
-        const result = await this.musicBotService.play(data.url, username);
-
-        // Sonucu sadece isteyen client'a gönder
-        return result;
+        this.logger.log(`🎵 Play: ${data.url} (${username})`);
+        return await this.musicBotService.play(data.url, username);
     }
 
-    /**
-     * Şarkı atla
-     */
     @SubscribeMessage('music-skip')
     async handleSkip(@ConnectedSocket() client: Socket) {
         const username = (client as any).username || 'Anonim';
-        const message = await this.musicBotService.skip(username);
-        return { message };
+        return { message: await this.musicBotService.skip(username) };
     }
 
-    /**
-     * Durdur
-     */
     @SubscribeMessage('music-stop')
     handleStop(@ConnectedSocket() client: Socket) {
-        const message = this.musicBotService.stop();
-        return { message };
+        return { message: this.musicBotService.stop() };
     }
 
-    /**
-     * Duraklat / Devam
-     */
     @SubscribeMessage('music-pause')
     handlePause(@ConnectedSocket() client: Socket) {
-        const message = this.musicBotService.pause();
-        return { message };
+        return { message: this.musicBotService.pause() };
     }
 
-    /**
-     * Kuyruk bilgisi
-     */
     @SubscribeMessage('music-queue')
     handleQueue(@ConnectedSocket() client: Socket) {
         return this.musicBotService.getQueue();
-    }
-
-    /**
-     * Producer ID bilgisi (client consume etmek için)
-     */
-    @SubscribeMessage('music-producer-id')
-    handleProducerId(@ConnectedSocket() client: Socket) {
-        return { producerId: this.musicBotService.getProducerId() };
     }
 }

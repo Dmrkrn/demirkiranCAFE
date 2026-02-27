@@ -43,6 +43,7 @@ export class MusicBotService implements OnModuleInit {
     // Event callback (gateway'e bildirim için)
     private onNowPlayingChange: ((data: any) => void) | null = null;
     private onQueueChange: ((data: any) => void) | null = null;
+    private onProducerReady: ((producerId: string) => void) | null = null;
 
     constructor(private readonly mediasoupService: MediasoupService) { }
 
@@ -60,9 +61,11 @@ export class MusicBotService implements OnModuleInit {
     setCallbacks(
         onNowPlayingChange: (data: any) => void,
         onQueueChange: (data: any) => void,
+        onProducerReady?: (producerId: string) => void,
     ) {
         this.onNowPlayingChange = onNowPlayingChange;
         this.onQueueChange = onQueueChange;
+        if (onProducerReady) this.onProducerReady = onProducerReady;
     }
 
     /**
@@ -115,6 +118,13 @@ export class MusicBotService implements OnModuleInit {
             });
 
             this.logger.log(`🎵 Audio producer oluşturuldu: ${this.audioProducer.id}`);
+
+            // Producer'ı mediasoup servisine kaydet (getAllProducers'da görünsün)
+            this.mediasoupService.registerExternalProducer(this.audioProducer);
+
+            // Gateway'e bildir (new-producer broadcast için)
+            this.onProducerReady?.(this.audioProducer.id);
+
             return true;
         } catch (error) {
             this.logger.error(`❌ Transport/Producer oluşturma hatası: ${error.message}`);

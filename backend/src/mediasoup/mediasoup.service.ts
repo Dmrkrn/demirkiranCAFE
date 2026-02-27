@@ -189,11 +189,19 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
     }
 
     /**
-     * Router instance'ını döndürür
-     * MusicBot gibi servisler PlainTransport oluşturmak için kullanır
+     * Router'a erişim
      */
-    getRouter(): mediasoupTypes.Router | null {
-        return this.router ?? null;
+    getRouter() {
+        return this.router;
+    }
+
+    /**
+     * Dışardan oluşturulan producer'ı kaydet (müzik botu için)
+     * Bu sayede getAllProducers() ve createConsumer() bot producer'ını tanır
+     */
+    registerExternalProducer(producer: mediasoupTypes.Producer): void {
+        this.producers.set(producer.id, producer);
+        this.logger.log(`🎤 External producer kaydedildi: ${producer.id} (${producer.kind})`);
     }
 
     /**
@@ -377,7 +385,7 @@ export class MediasoupService implements OnModuleInit, OnModuleDestroy {
             producerId: consumer.producerId,
             kind: consumer.kind,
             rtpParameters: consumer.rtpParameters,
-            appData: consumer.appData,
+            appData: this.producers.get(producerId)?.appData || {},
         };
     }
 

@@ -303,10 +303,12 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             // Client bilgilerini güncelle
             clientInfo.consumers.push(consumer.id);
 
-            // Producer sahibini bul (peerId)
+            // Producer sahibini bul (peerId) - bot ise 'music-bot'
             const producerOwnerEntry = Array.from(this.clients.entries())
                 .find(([_, info]) => info.producers.includes(data.producerId));
-            const producerPeerId = producerOwnerEntry ? producerOwnerEntry[0] : null;
+            const producerPeerId = producerOwnerEntry
+                ? producerOwnerEntry[0]
+                : (consumer.appData?.isBot ? 'music-bot' : null);
 
             return {
                 consumerId: consumer.id,
@@ -337,9 +339,12 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
         const ownProducerIds = clientInfo?.producers ?? [];
         const clientRoomId = (clientInfo as any).roomId || 'main';
 
-        // Sadece aynı odadaki producer'ları filtrele
+        // Sadece aynı odadaki producer'ları filtrele + bot producer'ları dahil et
         const otherProducers = producers.filter(p => {
             if (ownProducerIds.includes(p.id)) return false;
+
+            // Bot producer'ları her zaman dahil et
+            if (p.appData?.isBot) return true;
 
             // Producer sahibini bul
             const producerOwnerEntry = Array.from(this.clients.entries())
@@ -351,7 +356,10 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             const ownerRoomId = (ownerInfo as any).roomId || 'main';
 
             return ownerRoomId === clientRoomId;
-        });
+        }).map(p => ({
+            ...p,
+            peerId: p.appData?.isBot ? 'music-bot' : undefined,
+        }));
 
         return { producers: otherProducers };
     }

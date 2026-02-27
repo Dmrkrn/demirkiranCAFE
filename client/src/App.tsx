@@ -94,7 +94,6 @@ function App() {
     const [botMuted, setBotMuted] = useState(() => {
         return localStorage.getItem('musicBotMuted') === 'true';
     });
-    const [botProducerId, setBotProducerId] = useState<string | null>(null);
 
     // Menü dışına tıklanınca kapat
     useEffect(() => {
@@ -950,12 +949,10 @@ function App() {
                             <MusicPlayer
                                 socket={socket}
                                 request={request}
-                                consumeProducer={consumeProducer}
                                 botVolume={botVolume}
                                 botMuted={botMuted}
                                 onBotVolumeChange={(v) => { setBotVolume(v); localStorage.setItem('musicBotVolume', v.toString()); }}
                                 onBotMutedChange={(m) => { setBotMuted(m); localStorage.setItem('musicBotMuted', m.toString()); }}
-                                onBotProducerIdChange={setBotProducerId}
                             />
                         )}
 
@@ -1679,7 +1676,7 @@ function App() {
 
                                 {/* Audio Elements for Remote Streams (GÖRÜNMEZ AMA SES VERİR) */}
                                 {/* Normal kullanıcı sesleri */}
-                                {consumers.filter(c => c.kind === 'audio' && c.producerId !== botProducerId).map(consumer => (
+                                {consumers.filter(c => c.kind === 'audio' && !c.appData?.isBot).map(consumer => (
                                     <AudioPlayer
                                         key={consumer.id}
                                         stream={consumer.stream}
@@ -1689,7 +1686,7 @@ function App() {
                                     />
                                 ))}
                                 {/* Müzik botu sesi (kişiye özel volume/mute) */}
-                                {consumers.filter(c => c.kind === 'audio' && c.producerId === botProducerId).map(consumer => (
+                                {consumers.filter(c => c.kind === 'audio' && c.appData?.isBot).map(consumer => (
                                     <AudioPlayer
                                         key={consumer.id}
                                         stream={consumer.stream}

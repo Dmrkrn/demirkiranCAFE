@@ -4,12 +4,10 @@ import './MusicPlayer.css';
 interface MusicPlayerProps {
     socket: any;
     request: <T, R>(event: string, data?: T) => Promise<R>;
-    consumeProducer: (producerId: string) => Promise<void>;
     botVolume: number;
     botMuted: boolean;
     onBotVolumeChange: (volume: number) => void;
     onBotMutedChange: (muted: boolean) => void;
-    onBotProducerIdChange: (producerId: string | null) => void;
 }
 
 interface NowPlaying {
@@ -26,10 +24,18 @@ interface QueueItem {
     requestedBy: string;
 }
 
+/**
+ * MusicPlayer - Discord tarzı müzik botu kontrol paneli
+ * 
+ * Ses yönetimi bu bileşende YAPILMAZ.
+ * Bot sesi normal signaling akışıyla (new-producer → consume) tüm client'lara 
+ * dağıtılır ve App.tsx'deki AudioPlayer ile çalınır.
+ * Bu bileşen sadece UI kontrolleri sunar.
+ */
 export function MusicPlayer({
-    socket, request, consumeProducer,
+    socket, request,
     botVolume, botMuted,
-    onBotVolumeChange, onBotMutedChange, onBotProducerIdChange,
+    onBotVolumeChange, onBotMutedChange,
 }: MusicPlayerProps) {
     const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
     const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -38,34 +44,12 @@ export function MusicPlayer({
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
 
-    // Hangi producer'ı zaten consume ettiğimizi takip et (duplicate önleme)
-    const [consumedProducerId, setConsumedProducerId] = useState<string | null>(null);
-
-    // Bot producer'ını consume et (sadece bir kez)
-    const consumeBotProducer = useCallback(async (producerId: string) => {
-        if (consumedProducerId === producerId) return; // Zaten consume ettik
-        try {
-            await consumeProducer(producerId);
-            setConsumedProducerId(producerId);
-            onBotProducerIdChange(producerId);
-            console.log('🎵 Bot producer consumed:', producerId);
-        } catch (err) {
-            console.error('❌ Bot producer consume hatası:', err);
-        }
-    }, [consumedProducerId, consumeProducer, onBotProducerIdChange]);
-
     // Socket event listener'ları
     useEffect(() => {
         if (!socket) return;
 
-        const handleNowPlaying = (data: { nowPlaying: NowPlaying | null; producerId: string | null }) => {
+        const handleNowPlaying = (data: { nowPlaying: NowPlaying | null }) => {
             setNowPlaying(data.nowPlaying);
-            if (data.producerId) {
-                consumeBotProducer(data.producerId);
-            }
-            if (!data.nowPlaying) {
-                onBotProducerIdChange(null);
-            }
         };
 
         const handleQueueUpdate = (data: { queue: QueueItem[] }) => {
@@ -83,13 +67,6 @@ export function MusicPlayer({
             }
         }).catch(() => { });
 
-        // Producer ID'yi al ve consume et
-        request<any, any>('music-producer-id').then((data: any) => {
-            if (data?.producerId) {
-                consumeBotProducer(data.producerId);
-            }
-        }).catch(() => { });
-
         return () => {
             socket.off('music-now-playing', handleNowPlaying);
             socket.off('music-queue-update', handleQueueUpdate);
@@ -104,7 +81,7 @@ export function MusicPlayer({
             const result = await request<{ url: string }, any>('music-play', { url: urlInput.trim() });
             setStatusMessage(result?.message || '');
             setUrlInput('');
-        } catch (error) {
+        } catch (err) {
             setStatusMessage('❌ Şarkı çalınamadı');
         }
         setIsLoading(false);
@@ -151,7 +128,6 @@ export function MusicPlayer({
                     )}
                 </div>
                 <div className="music-controls-mini" onClick={(e) => e.stopPropagation()}>
-                    {/* Mute Button - her zaman görünür */}
                     <button
                         onClick={() => onBotMutedChange(!botMuted)}
                         title={botMuted ? 'Sesi Aç' : 'Sustur'}
@@ -174,7 +150,7 @@ export function MusicPlayer({
                 <div className="music-player-expanded">
                     {/* Volume Control */}
                     <div className="music-volume-row">
-                        <span className="volume-label">{botMuted ? '🔇' : botVolume > 50 ? '🔊' : botVolume > 0 ? '🔉' : '🔈'}</span>
+                        <span className="volume-label">{botMuted ? '🔇' : botVolume > 50 ? '🔊' : '🔉'}</span>
                         <input
                             type="range"
                             min="0"
@@ -202,12 +178,8 @@ export function MusicPlayer({
                         </button>
                     </div>
 
-                    {/* Status Message */}
-                    {statusMessage && (
-                        <div className="music-status">{statusMessage}</div>
-                    )}
+                    {statusMessage && <div className="music-status">{statusMessage}</div>}
 
-                    {/* Şu an çalan */}
                     {nowPlaying && (
                         <div className="music-now-playing">
                             <div className="music-np-label">🎧 Şu an çalıyor:</div>
@@ -216,7 +188,6 @@ export function MusicPlayer({
                         </div>
                     )}
 
-                    {/* Kuyruk */}
                     {queue.length > 0 && (
                         <div className="music-queue">
                             <div className="music-queue-label">📋 Kuyruk ({queue.length})</div>
