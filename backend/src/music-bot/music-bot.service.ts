@@ -1,10 +1,10 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { spawn, ChildProcess } from 'child_process';
 import { MediasoupService } from '../mediasoup/mediasoup.service';
 import { types as mediasoupTypes } from 'mediasoup';
-import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs';
 import * as os from 'os';
+import * as fs from 'fs';
 
 export interface QueueItem {
     url: string;
@@ -96,7 +96,7 @@ export class MusicBotService implements OnModuleInit {
                 comedia: true, // FFmpeg bağlandığında otomatik remote IP/port ayarlanır
             });
 
-            this.logger.log(`🚇 PlainTransport oluşturuldu - port: ${this.plainTransport.tuple.localPort}`);
+            this.logger.log(`🚇 PlainTransport oluşturuldu - port: ${this.plainTransport.tuple.localPort} `);
 
             // Audio producer oluştur
             this.audioProducer = await this.plainTransport.produce({
@@ -119,7 +119,7 @@ export class MusicBotService implements OnModuleInit {
                 appData: { isBot: true, botType: 'music' },
             });
 
-            this.logger.log(`🎵 Audio producer oluşturuldu: ${this.audioProducer.id}`);
+            this.logger.log(`🎵 Audio producer oluşturuldu: ${this.audioProducer.id} `);
 
             // Producer'ı mediasoup servisine kaydet (getAllProducers'da görünsün)
             this.mediasoupService.registerExternalProducer(this.audioProducer);
@@ -129,7 +129,7 @@ export class MusicBotService implements OnModuleInit {
 
             return true;
         } catch (error) {
-            this.logger.error(`❌ Transport/Producer oluşturma hatası: ${error.message}`);
+            this.logger.error(`❌ Transport / Producer oluşturma hatası: ${error.message} `);
             return false;
         }
     }
@@ -142,87 +142,17 @@ export class MusicBotService implements OnModuleInit {
     }
 
     /**
-     * URL'den şarkı bilgisi al (YouTube veya Spotify)
+     * Şarkı bilgisi al
      */
     private getVideoInfo(url: string): Promise<{ title: string; duration?: string }> {
-        if (this.isSpotifyUrl(url)) {
-            return this.getSpotifyInfo(url);
-        }
-        return this.getYouTubeInfo(url);
-    }
-
-    /**
-     * YouTube URL'den şarkı bilgisi al
-     */
-    private getYouTubeInfo(url: string): Promise<{ title: string; duration?: string }> {
-        return new Promise((resolve, reject) => {
-            const ytdlp = spawn('yt-dlp', [
-                '--print', '%(title)s',
-                '--print', '%(duration_string)s',
-                '--no-playlist',
-                '--js-runtimes', 'node',
-                url,
-            ]);
-
-            let output = '';
-            let errorOutput = '';
-
-            ytdlp.stdout.on('data', (data) => {
-                output += data.toString();
-            });
-
-            ytdlp.stderr.on('data', (data) => {
-                errorOutput += data.toString();
-            });
-
-            ytdlp.on('close', (code) => {
-                if (code !== 0) {
-                    reject(new Error(`yt-dlp info hatası: ${errorOutput}`));
-                    return;
-                }
-                const lines = output.trim().split('\n');
-                resolve({
-                    title: lines[0] || 'Bilinmeyen Şarkı',
-                    duration: lines[1] || undefined,
-                });
-            });
-        });
-    }
-
-    /**
-     * Spotify URL'den şarkı bilgisi al
-     */
-    private getSpotifyInfo(url: string): Promise<{ title: string; duration?: string }> {
-        return new Promise((resolve, reject) => {
-            const spotdl = spawn('spotdl', [
-                'url', url,
-                '--print-errors',
-                '--output', '/dev/null',
-            ], { shell: true });
-
-            let output = '';
-            let errorOutput = '';
-
-            spotdl.stdout.on('data', (data) => {
-                output += data.toString();
-            });
-
-            spotdl.stderr.on('data', (data) => {
-                errorOutput += data.toString();
-            });
-
-            spotdl.on('close', (code) => {
-                // spotdl çıkışından title al, yoksa URL'yi kullan
-                const title = output.trim().split('\n')[0] || url.split('/').pop() || 'Spotify Şarkısı';
-                resolve({ title });
-            });
-
-            // Timeout: 10 saniye bekle, olmadı title olarak URL ver
-            setTimeout(() => {
-                spotdl.kill();
-                const fallbackTitle = url.split('/').pop() || 'Spotify Şarkısı';
-                resolve({ title: fallbackTitle });
-            }, 10000);
+        return new Promise((resolve) => {
+            // Hızlıca varsayılan başlık dön, metadata aramasıyla vakit kaybetme
+            // Gerçek başlık, yt-dlp stream başlarken nowPlaying'e güncellenecek
+            if (this.isSpotifyUrl(url)) {
+                resolve({ title: 'Spotify İsteği Yükleniyor...' });
+                return;
+            }
+            resolve({ title: 'YouTube İsteği Yükleniyor...' });
         });
     }
 
@@ -233,7 +163,7 @@ export class MusicBotService implements OnModuleInit {
         try {
             // Şarkı bilgisi al
             const info = await this.getVideoInfo(url);
-            this.logger.log(`🎵 Şarkı bulundu: ${info.title}`);
+            this.logger.log(`🎵 Şarkı bulundu: ${info.title} `);
 
             const item: QueueItem = {
                 url,
@@ -245,20 +175,20 @@ export class MusicBotService implements OnModuleInit {
             // Eğer şu an çalan bir şey yoksa direkt başlat
             if (!this.nowPlaying) {
                 await this.startPlaying(item);
-                return { success: true, message: `🎵 Çalınıyor: **${info.title}**`, title: info.title };
+                return { success: true, message: `🎵 Çalınıyor: ** ${info.title}** `, title: info.title };
             } else {
                 // Kuyruğa ekle
                 this.queue.push(item);
                 this.onQueueChange?.({ queue: this.getQueue() });
                 return {
                     success: true,
-                    message: `📋 Kuyruğa eklendi (#${this.queue.length}): **${info.title}**`,
+                    message: `📋 Kuyruğa eklendi(#${this.queue.length}): ** ${info.title}** `,
                     title: info.title,
                 };
             }
         } catch (error) {
-            this.logger.error(`❌ Play hatası: ${error.message}`);
-            return { success: false, message: `❌ Şarkı çalınamadı: ${error.message}` };
+            this.logger.error(`❌ Play hatası: ${error.message} `);
+            return { success: false, message: `❌ Şarkı çalınamadı: ${error.message} ` };
         }
     }
 
@@ -288,130 +218,130 @@ export class MusicBotService implements OnModuleInit {
             startedAt: Date.now(),
         };
 
-        // URL tipine göre audio pipeline seç
+        // URL tipine göre query oluştur (Bot protection ve Rate Limit aşmak için ytsearch kullanıyoruz)
+        let searchQuery = item.url;
         if (this.isSpotifyUrl(item.url)) {
-            // Spotify: spotdl → FFmpeg → RTP
-            this.ytdlpProcess = spawn('spotdl', [
-                'download', item.url,
-                '--output', `${this.tempDir}/current.{output-ext}`,
-                '--format', 'opus',
-                '--overwrite', 'force',
-            ], { shell: true });
+            // Spotify IP ban (Rate Limit) yediğimiz için spotdl kullanmıyoruz. URL'den ID'yi alıp YouTube'da aratıyoruz.
+            const trackId = item.url.split('/').pop()?.split('?')[0];
+            searchQuery = `ytsearch1:spotify track ${trackId || item.url} audio lyrics`;
+            this.logger.log(`🔄 Spotify linki YouTube aramasına çevrildi: ${searchQuery} `);
+        } else if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
+            // Eğer URL ise ve bot korumasına takılma ihtimali varsa, bazen ytsearch daha güvenlidir.
+            // Fakat önce URL'yi direkt deneyelim, olmazsa hata yakalayıp search'e döneceğiz (ileride).
+            // Şimdilik direkt URL'i veriyoruz ama --rm-cache-dir ile başlatıyoruz.
+            searchQuery = item.url;
+        }
 
-            // spotdl bitince dosyayı FFmpeg'e ver
-            this.ytdlpProcess.on('close', (spotdlCode) => {
-                if (spotdlCode === 0) {
-                    // İndirilen dosyayı bul ve FFmpeg'e ver
-                    const files = fs.readdirSync(this.tempDir).filter(f => f.startsWith('current'));
-                    const audioFile = files[0] ? path.join(this.tempDir, files[0]) : null;
-                    if (audioFile && fs.existsSync(audioFile)) {
-                        this.ffmpegProcess = spawn('ffmpeg', [
-                            '-re',
-                            '-i', audioFile,
-                            '-acodec', 'libopus',
-                            '-ab', '128k',
-                            '-ac', '2',
-                            '-ar', '48000',
-                            '-f', 'rtp',
-                            '-ssrc', '11111111',
-                            '-payload_type', '101',
-                            `rtp://127.0.0.1:${rtpPort}`,
-                        ], { shell: true });
+        this.logger.log(`🎵 Pipeline başlatılıyor: ${searchQuery} → port ${rtpPort} `);
 
-                        this.ffmpegProcess.on('close', (code) => {
-                            // Temizle
-                            try { fs.unlinkSync(audioFile); } catch { }
-                            this.logger.log(`🎵 FFmpeg kapandı (code: ${code}, session: ${sessionId})`);
-                            if (sessionId !== this.playbackSessionId) return;
-                            if (code === 0 || code === 255 || code === null) this.playNext();
-                        });
+        // yt-dlp → FFmpeg → RTP
+        // spotdl kullanmıyoruz çünkü rate limit yedik, yt-dlp her şeyi ytsearch ile bulabilir.
+        this.ytdlpProcess = spawn('yt-dlp', [
+            '-f', 'bestaudio',
+            '-o', '-',
+            '--no-playlist',
+            '--js-runtimes', 'node',
+            '--rm-cache-dir', // Bot korumalarını temizlemek için
+            searchQuery,
+        ], { shell: true });
 
-                        this.ffmpegProcess.on('error', (err) => {
-                            this.logger.error(`❌ FFmpeg hatası: ${err.message}`);
-                        });
-                    }
-                } else {
-                    this.logger.error(`❌ spotdl hatası (code: ${spotdlCode})`);
-                    if (sessionId === this.playbackSessionId) this.playNext();
-                }
-            });
+        this.ffmpegProcess = spawn('ffmpeg', [
+            '-i', 'pipe:0',        // stdin'den oku (yt-dlp çıkışı)
+            '-map', '0:a:0',       // Sadece ses
+            '-acodec', 'libopus',  // Opus codec
+            '-ab', '128k',         // 128kbps bitrate
+            '-ac', '2',            // Stereo
+            '-ar', '48000',        // 48kHz sample rate
+            '-f', 'rtp',           // RTP format
+            '-ssrc', '11111111',   // Producer'daki SSRC ile aynı
+            '-payload_type', '101', // Producer'daki payload type ile aynı
+            `rtp://127.0.0.1:${rtpPort}`,
+        ], { shell: true });
+
+        // yt-dlp stdout → FFmpeg stdin
+        if (this.ytdlpProcess.stdout && this.ffmpegProcess.stdin) {
+            this.ytdlpProcess.stdout.pipe(this.ffmpegProcess.stdin);
+            this.logger.log('🔗 yt-dlp → FFmpeg pipe bağlandı');
         } else {
-            // YouTube: yt-dlp → FFmpeg → RTP
-            this.logger.log(`🎵 YouTube pipeline başlatılıyor: ${item.url} → port ${rtpPort}`);
+            this.logger.error('❌ Pipe bağlanamadı! stdout/stdin null');
+        }
 
-            this.ytdlpProcess = spawn('yt-dlp', [
-                '-f', 'bestaudio',
-                '-o', '-',
-                '--no-playlist',
-                '--js-runtimes', 'node',
-                item.url,
-            ], { shell: true });
+        // yt-dlp debug log (Gerçek ismi yakalamak ve bot hatalarını yakalamak için)
+        this.ytdlpProcess.stderr?.on('data', (data) => {
+            const msg = data.toString().trim();
+            if (msg) {
+                this.logger.log(`📥 yt-dlp: ${msg.substring(0, 200)}`);
 
-            this.ffmpegProcess = spawn('ffmpeg', [
-                '-i', 'pipe:0',        // stdin'den oku (yt-dlp çıkışı)
-                '-map', '0:a:0',       // Sadece ses
-                '-acodec', 'libopus',  // Opus codec
-                '-ab', '128k',         // 128kbps bitrate
-                '-ac', '2',            // Stereo
-                '-ar', '48000',        // 48kHz sample rate
-                '-f', 'rtp',           // RTP format
-                '-ssrc', '11111111',   // Producer'daki SSRC ile aynı
-                '-payload_type', '101', // Producer'daki payload type ile aynı
-                `rtp://127.0.0.1:${rtpPort}`,
-            ], { shell: true });
+                // Gerçek ismi parse et: "[download] Destination: Gerçek Şarkı İsmi" veya "[youtube] Extracting URL: " değilse
+                if (msg.includes('[download] Destination:')) {
+                    const realTitle = msg.split('Destination:')[1].trim().replace('.webm', '').replace('.m4a', '');
+                    if (this.nowPlaying && realTitle !== '-') {
+                        this.nowPlaying.title = realTitle;
+                        this.onNowPlayingChange?.({
+                            nowPlaying: this.nowPlaying,
+                            producerId: this.audioProducer?.id,
+                        });
+                        this.logger.log(`✨ Şarkı gerçek ismi bulundu: ${realTitle}`);
+                    }
+                }
 
-            // yt-dlp stdout → FFmpeg stdin
-            if (this.ytdlpProcess.stdout && this.ffmpegProcess.stdin) {
-                this.ytdlpProcess.stdout.pipe(this.ffmpegProcess.stdin);
-                this.logger.log('🔗 yt-dlp → FFmpeg pipe bağlandı');
-            } else {
-                this.logger.error('❌ Pipe bağlanamadı! stdout/stdin null');
+                // Bot protection hatası yakalama
+                if (msg.includes('Sign in to confirm you’re not a bot')) {
+                    this.logger.error(`❌ YOUTUBE BOT KORUMASI DEVREDE! Bu link çalınamıyor: ${item.url}`);
+                    // Eski processleri öldür ve search stringiyle tekrar dene (1 kereye mahsus)
+                    if (searchQuery === item.url && sessionId === this.playbackSessionId) {
+                        this.logger.log(`🔄 Bot koruması yüzünden ytsearch1 fall-back uygulanıyor...`);
+                        const videoId = item.url.split('v=')[1]?.split('&')[0] || item.url.split('youtu.be/')[1]?.split('?')[0];
+                        if (videoId) {
+                            // Queue'nun başına ytsearch halini ekle ve next yap
+                            this.queue.unshift({ ...item, url: `ytsearch1:${videoId} audio` });
+                            this.killProcesses(); // Bu, close eventlerini tetikleyecek ama code 183/null döneceği için playNext tetiklenecek
+                        }
+                    }
+                }
             }
+        });
 
-            // yt-dlp debug log
-            this.ytdlpProcess.stderr?.on('data', (data) => {
-                const msg = data.toString().trim();
-                if (msg) this.logger.log(`📥 yt-dlp: ${msg.substring(0, 200)}`);
-            });
-
-            // FFmpeg debug log
-            this.ffmpegProcess.stderr?.on('data', (data) => {
-                const msg = data.toString().trim();
-                if (msg.includes('Error') || msg.includes('error') || msg.includes('rtp://')) {
-                    this.logger.log(`🎬 FFmpeg: ${msg.substring(0, 200)}`);
+        // FFmpeg debug log
+        this.ffmpegProcess.stderr?.on('data', (data) => {
+            const msg = data.toString().trim();
+            if (msg.includes('Error') || msg.includes('error')) {
+                // "Error parsing Opus packet header" zararsızdır, loglamayalım
+                if (!msg.includes('parsing Opus packet header')) {
+                    this.logger.log(`🎬 FFmpeg Hata/Uyarı: ${msg.substring(0, 200)}`);
                 }
-            });
+            }
+        });
 
-            // Şarkı bittiğinde sıradakini çal (SADECE bu session'a ait FFmpeg için)
-            this.ffmpegProcess.on('close', (code) => {
-                this.logger.log(`🎵 FFmpeg kapandı (code: ${code}, session: ${sessionId})`);
-                // Eski session'dan gelen close event'i ignore et
-                if (sessionId !== this.playbackSessionId) {
-                    this.logger.log(`⚠️ Eski session (${sessionId}), yeni session (${this.playbackSessionId}) — ignore`);
-                    return;
-                }
-                if (code === 0 || code === 255 || code === null) {
-                    this.playNext();
-                }
-            });
+        // Şarkı bittiğinde sıradakini çal (SADECE bu session'a ait FFmpeg için)
+        this.ffmpegProcess.on('close', (code) => {
+            this.logger.log(`🎵 FFmpeg kapandı (code: ${code}, session: ${sessionId})`);
+            // Eski session'dan gelen close event'i ignore et
+            if (sessionId !== this.playbackSessionId) {
+                return;
+            }
+            // FFmpeg her durumda (error, bitiş) kapanırsa playNext'i çağırır ki kuyruk devam etsin
+            if (code === 0 || code === 255 || code === null || code === 183 || code === 1) {
+                this.playNext();
+            }
+        });
 
-            this.ytdlpProcess.on('close', (code) => {
-                this.logger.log(`📥 yt-dlp kapandı (code: ${code})`);
-            });
+        this.ytdlpProcess.on('close', (code) => {
+            this.logger.log(`📥 yt-dlp kapandı (code: ${code})`);
+        });
 
-            this.ytdlpProcess.on('error', (err) => {
-                this.logger.error(`❌ yt-dlp spawn hatası: ${err.message}`);
-            });
+        this.ytdlpProcess.on('error', (err) => {
+            this.logger.error(`❌ yt-dlp spawn hatası: ${err.message}`);
+        });
 
-            this.ffmpegProcess.on('error', (err) => {
-                this.logger.error(`❌ FFmpeg spawn hatası: ${err.message}`);
-            });
+        this.ffmpegProcess.on('error', (err) => {
+            this.logger.error(`❌ FFmpeg spawn hatası: ${err.message}`);
+        });
 
-            // stdin error (pipe kırılırsa)
-            this.ffmpegProcess.stdin?.on('error', (err) => {
-                this.logger.error(`❌ FFmpeg stdin hatası: ${err.message}`);
-            });
-        } // end YouTube branch
+        // stdin error (pipe kırılırsa)
+        this.ffmpegProcess.stdin?.on('error', (err) => {
+            this.logger.error(`❌ FFmpeg stdin hatası: ${err.message}`);
+        });
 
         // Broadcast: Şu an çalan
         this.onNowPlayingChange?.({
