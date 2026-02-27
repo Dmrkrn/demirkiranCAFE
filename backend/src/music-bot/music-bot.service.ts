@@ -36,6 +36,8 @@ export class MusicBotService implements OnModuleInit {
     // FFmpeg process
     private ffmpegProcess: ChildProcess | null = null;
     private ytdlpProcess: ChildProcess | null = null;
+    private playbackSessionId = 0;  // Race condition guard
+    private isTransitioning = false;  // Double playNext guard
 
     // Temp directory
     private readonly tempDir = path.join(os.tmpdir(), 'music-bot');
@@ -196,7 +198,7 @@ export class MusicBotService implements OnModuleInit {
                 'url', url,
                 '--print-errors',
                 '--output', '/dev/null',
-            ]);
+            ], { shell: true });
 
             let output = '';
             let errorOutput = '';
@@ -264,6 +266,10 @@ export class MusicBotService implements OnModuleInit {
      * Şarkıyı başlat (FFmpeg + yt-dlp pipeline)
      */
     private async startPlaying(item: QueueItem): Promise<void> {
+        // Yeni session başlat — eski close handler'ları devre dışı kalır
+        this.playbackSessionId++;
+        const sessionId = this.playbackSessionId;
+
         // Varsa eski processleri kapat
         this.killProcesses();
 
@@ -290,7 +296,7 @@ export class MusicBotService implements OnModuleInit {
                 '--output', `${this.tempDir}/current.{output-ext}`,
                 '--format', 'opus',
                 '--overwrite', 'force',
-            ]);
+            ], { shell: true });
 
             // spotdl bitince dosyayı FFmpeg'e ver
             this.ytdlpProcess.on('close', (spotdlCode) => {
@@ -310,13 +316,14 @@ export class MusicBotService implements OnModuleInit {
                             '-ssrc', '11111111',
                             '-payload_type', '101',
                             `rtp://127.0.0.1:${rtpPort}`,
-                        ]);
+                        ], { shell: true });
 
                         this.ffmpegProcess.on('close', (code) => {
                             // Temizle
                             try { fs.unlinkSync(audioFile); } catch { }
-                            this.logger.log(`🎵 FFmpeg kapandı (code: ${code})`);
-                            if (code === 0 || code === 255) this.playNext();
+                            this.logger.log(`🎵 FFmpeg kapandı (code: ${code}, session: ${sessionId})`);
+                            if (sessionId !== this.playbackSessionId) return;
+                            if (code === 0 || code === 255 || code === null) this.playNext();
                         });
 
                         this.ffmpegProcess.on('error', (err) => {
@@ -325,7 +332,7 @@ export class MusicBotService implements OnModuleInit {
                     }
                 } else {
                     this.logger.error(`❌ spotdl hatası (code: ${spotdlCode})`);
-                    this.playNext();
+                    if (sessionId === this.playbackSessionId) this.playNext();
                 }
             });
         } else {
@@ -338,7 +345,7 @@ export class MusicBotService implements OnModuleInit {
                 '--no-playlist',
                 '--js-runtimes', 'node',
                 item.url,
-            ]);
+            ], { shell: true });
 
             this.ffmpegProcess = spawn('ffmpeg', [
                 '-i', 'pipe:0',        // stdin'den oku (yt-dlp çıkışı)
@@ -351,7 +358,7 @@ export class MusicBotService implements OnModuleInit {
                 '-ssrc', '11111111',   // Producer'daki SSRC ile aynı
                 '-payload_type', '101', // Producer'daki payload type ile aynı
                 `rtp://127.0.0.1:${rtpPort}`,
-            ]);
+            ], { shell: true });
 
             // yt-dlp stdout → FFmpeg stdin
             if (this.ytdlpProcess.stdout && this.ffmpegProcess.stdin) {
@@ -375,10 +382,15 @@ export class MusicBotService implements OnModuleInit {
                 }
             });
 
-            // Şarkı bittiğinde sıradakini çal
+            // Şarkı bittiğinde sıradakini çal (SADECE bu session'a ait FFmpeg için)
             this.ffmpegProcess.on('close', (code) => {
-                this.logger.log(`🎵 FFmpeg kapandı (code: ${code})`);
-                if (code === 0 || code === 255) {
+                this.logger.log(`🎵 FFmpeg kapandı (code: ${code}, session: ${sessionId})`);
+                // Eski session'dan gelen close event'i ignore et
+                if (sessionId !== this.playbackSessionId) {
+                    this.logger.log(`⚠️ Eski session (${sessionId}), yeni session (${this.playbackSessionId}) — ignore`);
+                    return;
+                }
+                if (code === 0 || code === 255 || code === null) {
                     this.playNext();
                 }
             });
@@ -414,15 +426,25 @@ export class MusicBotService implements OnModuleInit {
      * Sıradaki şarkıya geç
      */
     private async playNext(): Promise<void> {
-        if (this.queue.length > 0) {
-            const nextItem = this.queue.shift()!;
-            this.onQueueChange?.({ queue: this.getQueue() });
-            await this.startPlaying(nextItem);
-        } else {
-            // Kuyruk boş
-            this.nowPlaying = null;
-            this.onNowPlayingChange?.({ nowPlaying: null, producerId: null });
-            this.logger.log('🎵 Kuyruk bitti');
+        // Double-trigger guard
+        if (this.isTransitioning) {
+            this.logger.log('⚠️ playNext zaten çalışıyor, skip');
+            return;
+        }
+        this.isTransitioning = true;
+
+        try {
+            if (this.queue.length > 0) {
+                const nextItem = this.queue.shift()!;
+                this.onQueueChange?.({ queue: this.getQueue() });
+                await this.startPlaying(nextItem);
+            } else {
+                this.nowPlaying = null;
+                this.onNowPlayingChange?.({ nowPlaying: null, producerId: null });
+                this.logger.log('🎵 Kuyruk bitti');
+            }
+        } finally {
+            this.isTransitioning = false;
         }
     }
 
