@@ -4,6 +4,7 @@ import { types as mediasoupTypes } from 'mediasoup';
 import { spawn, ChildProcess } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 export interface QueueItem {
     url: string;
@@ -37,7 +38,7 @@ export class MusicBotService implements OnModuleInit {
     private ytdlpProcess: ChildProcess | null = null;
 
     // Temp directory
-    private readonly tempDir = '/tmp/music-bot';
+    private readonly tempDir = path.join(os.tmpdir(), 'music-bot');
 
     // Event callback (gateway'e bildirim için)
     private onNowPlayingChange: ((data: any) => void) | null = null;
@@ -319,6 +320,8 @@ export class MusicBotService implements OnModuleInit {
             });
         } else {
             // YouTube: yt-dlp → FFmpeg → RTP
+            this.logger.log(`🎵 YouTube pipeline başlatılıyor: ${item.url} → port ${rtpPort}`);
+
             this.ytdlpProcess = spawn('yt-dlp', [
                 '-f', 'bestaudio',
                 '-o', '-',
@@ -341,17 +344,24 @@ export class MusicBotService implements OnModuleInit {
             ]);
 
             // yt-dlp stdout → FFmpeg stdin
-            this.ytdlpProcess.stdout?.pipe(this.ffmpegProcess.stdin!);
+            if (this.ytdlpProcess.stdout && this.ffmpegProcess.stdin) {
+                this.ytdlpProcess.stdout.pipe(this.ffmpegProcess.stdin);
+                this.logger.log('🔗 yt-dlp → FFmpeg pipe bağlandı');
+            } else {
+                this.logger.error('❌ Pipe bağlanamadı! stdout/stdin null');
+            }
 
-            // Log
+            // yt-dlp debug log
             this.ytdlpProcess.stderr?.on('data', (data) => {
-                // yt-dlp progress (çok fazla log olmasın)
+                const msg = data.toString().trim();
+                if (msg) this.logger.log(`📥 yt-dlp: ${msg.substring(0, 200)}`);
             });
 
+            // FFmpeg debug log
             this.ffmpegProcess.stderr?.on('data', (data) => {
-                const msg = data.toString();
-                if (msg.includes('Error') || msg.includes('error')) {
-                    this.logger.error(`FFmpeg: ${msg}`);
+                const msg = data.toString().trim();
+                if (msg.includes('Error') || msg.includes('error') || msg.includes('rtp://')) {
+                    this.logger.log(`🎬 FFmpeg: ${msg.substring(0, 200)}`);
                 }
             });
 
@@ -359,17 +369,25 @@ export class MusicBotService implements OnModuleInit {
             this.ffmpegProcess.on('close', (code) => {
                 this.logger.log(`🎵 FFmpeg kapandı (code: ${code})`);
                 if (code === 0 || code === 255) {
-                    // Normal bitiş - sıradaki şarkıyı çal
                     this.playNext();
                 }
             });
 
+            this.ytdlpProcess.on('close', (code) => {
+                this.logger.log(`📥 yt-dlp kapandı (code: ${code})`);
+            });
+
             this.ytdlpProcess.on('error', (err) => {
-                this.logger.error(`❌ yt-dlp hatası: ${err.message}`);
+                this.logger.error(`❌ yt-dlp spawn hatası: ${err.message}`);
             });
 
             this.ffmpegProcess.on('error', (err) => {
-                this.logger.error(`❌ FFmpeg hatası: ${err.message}`);
+                this.logger.error(`❌ FFmpeg spawn hatası: ${err.message}`);
+            });
+
+            // stdin error (pipe kırılırsa)
+            this.ffmpegProcess.stdin?.on('error', (err) => {
+                this.logger.error(`❌ FFmpeg stdin hatası: ${err.message}`);
             });
         } // end YouTube branch
 
