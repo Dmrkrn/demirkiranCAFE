@@ -86,6 +86,16 @@ function App() {
     // Context Menu State (Sağ Tık Menüsü)
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, peerId: string } | null>(null);
 
+    // Müzik botu - kişiye özel ses ayarları
+    const [botVolume, setBotVolume] = useState(() => {
+        const saved = localStorage.getItem('musicBotVolume');
+        return saved ? parseInt(saved) : 50;
+    });
+    const [botMuted, setBotMuted] = useState(() => {
+        return localStorage.getItem('musicBotMuted') === 'true';
+    });
+    const [botProducerId, setBotProducerId] = useState<string | null>(null);
+
     // Menü dışına tıklanınca kapat
     useEffect(() => {
         const handleClick = () => setContextMenu(null);
@@ -941,7 +951,11 @@ function App() {
                                 socket={socket}
                                 request={request}
                                 consumeProducer={consumeProducer}
-                                consumers={consumers}
+                                botVolume={botVolume}
+                                botMuted={botMuted}
+                                onBotVolumeChange={(v) => { setBotVolume(v); localStorage.setItem('musicBotVolume', v.toString()); }}
+                                onBotMutedChange={(m) => { setBotMuted(m); localStorage.setItem('musicBotMuted', m.toString()); }}
+                                onBotProducerIdChange={setBotProducerId}
                             />
                         )}
 
@@ -1664,12 +1678,23 @@ function App() {
                                 </div>
 
                                 {/* Audio Elements for Remote Streams (GÖRÜNMEZ AMA SES VERİR) */}
-                                {consumers.filter(c => c.kind === 'audio').map(consumer => (
+                                {/* Normal kullanıcı sesleri */}
+                                {consumers.filter(c => c.kind === 'audio' && c.producerId !== botProducerId).map(consumer => (
                                     <AudioPlayer
                                         key={consumer.id}
                                         stream={consumer.stream}
                                         muted={isDeafened || isSharing}
                                         volume={userVolumes[consumer.peerId] ?? 100}
+                                        speakerId={activeSpeakerId}
+                                    />
+                                ))}
+                                {/* Müzik botu sesi (kişiye özel volume/mute) */}
+                                {consumers.filter(c => c.kind === 'audio' && c.producerId === botProducerId).map(consumer => (
+                                    <AudioPlayer
+                                        key={consumer.id}
+                                        stream={consumer.stream}
+                                        muted={botMuted || isDeafened}
+                                        volume={botVolume}
                                         speakerId={activeSpeakerId}
                                     />
                                 ))}

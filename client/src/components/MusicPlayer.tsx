@@ -1,12 +1,15 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './MusicPlayer.css';
 
 interface MusicPlayerProps {
     socket: any;
     request: <T, R>(event: string, data?: T) => Promise<R>;
     consumeProducer: (producerId: string) => Promise<void>;
-    /** Tüm consumer listesi - bot consumer'ını bulmak için */
-    consumers: Array<{ id: string; producerId: string; kind: string; stream: MediaStream; appData?: any }>;
+    botVolume: number;
+    botMuted: boolean;
+    onBotVolumeChange: (volume: number) => void;
+    onBotMutedChange: (muted: boolean) => void;
+    onBotProducerIdChange: (producerId: string | null) => void;
 }
 
 interface NowPlaying {
@@ -23,7 +26,11 @@ interface QueueItem {
     requestedBy: string;
 }
 
-export function MusicPlayer({ socket, request, consumeProducer, consumers }: MusicPlayerProps) {
+export function MusicPlayer({
+    socket, request, consumeProducer,
+    botVolume, botMuted,
+    onBotVolumeChange, onBotMutedChange, onBotProducerIdChange,
+}: MusicPlayerProps) {
     const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
     const [queue, setQueue] = useState<QueueItem[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -31,38 +38,21 @@ export function MusicPlayer({ socket, request, consumeProducer, consumers }: Mus
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
 
-    // Per-user volume & mute (kişiye özel, localStorage'da saklanır)
-    const [botVolume, setBotVolume] = useState(() => {
-        const saved = localStorage.getItem('musicBotVolume');
-        return saved ? parseInt(saved) : 50;
-    });
-    const [botMuted, setBotMuted] = useState(() => {
-        return localStorage.getItem('musicBotMuted') === 'true';
-    });
+    // Hangi producer'ı zaten consume ettiğimizi takip et (duplicate önleme)
+    const [consumedProducerId, setConsumedProducerId] = useState<string | null>(null);
 
-    // Bot producer ID'si
-    const [botProducerId, setBotProducerId] = useState<string | null>(null);
-
-    // Audio ref (bot sesini çalmak için)
-    const audioRef = useRef<HTMLAudioElement>(null);
-
-    // Bot consumer'ını bul ve audio'ya bağla
-    useEffect(() => {
-        if (!botProducerId || !consumers) return;
-        const botConsumer = consumers.find(c => c.producerId === botProducerId && c.kind === 'audio');
-        if (botConsumer && audioRef.current) {
-            audioRef.current.srcObject = botConsumer.stream;
+    // Bot producer'ını consume et (sadece bir kez)
+    const consumeBotProducer = useCallback(async (producerId: string) => {
+        if (consumedProducerId === producerId) return; // Zaten consume ettik
+        try {
+            await consumeProducer(producerId);
+            setConsumedProducerId(producerId);
+            onBotProducerIdChange(producerId);
+            console.log('🎵 Bot producer consumed:', producerId);
+        } catch (err) {
+            console.error('❌ Bot producer consume hatası:', err);
         }
-    }, [botProducerId, consumers]);
-
-    // Volume değiştiğinde audio elementine uygula + localStorage'a kaydet
-    useEffect(() => {
-        if (audioRef.current) {
-            audioRef.current.volume = botMuted ? 0 : botVolume / 100;
-        }
-        localStorage.setItem('musicBotVolume', botVolume.toString());
-        localStorage.setItem('musicBotMuted', botMuted.toString());
-    }, [botVolume, botMuted]);
+    }, [consumedProducerId, consumeProducer, onBotProducerIdChange]);
 
     // Socket event listener'ları
     useEffect(() => {
@@ -71,8 +61,10 @@ export function MusicPlayer({ socket, request, consumeProducer, consumers }: Mus
         const handleNowPlaying = (data: { nowPlaying: NowPlaying | null; producerId: string | null }) => {
             setNowPlaying(data.nowPlaying);
             if (data.producerId) {
-                setBotProducerId(data.producerId);
-                consumeProducer(data.producerId).catch(console.error);
+                consumeBotProducer(data.producerId);
+            }
+            if (!data.nowPlaying) {
+                onBotProducerIdChange(null);
             }
         };
 
@@ -94,8 +86,7 @@ export function MusicPlayer({ socket, request, consumeProducer, consumers }: Mus
         // Producer ID'yi al ve consume et
         request<any, any>('music-producer-id').then((data: any) => {
             if (data?.producerId) {
-                setBotProducerId(data.producerId);
-                consumeProducer(data.producerId).catch(console.error);
+                consumeBotProducer(data.producerId);
             }
         }).catch(() => { });
 
@@ -138,19 +129,8 @@ export function MusicPlayer({ socket, request, consumeProducer, consumers }: Mus
         setTimeout(() => setStatusMessage(''), 3000);
     }, [request]);
 
-    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setBotVolume(parseInt(e.target.value));
-    };
-
-    const toggleMute = () => {
-        setBotMuted(!botMuted);
-    };
-
     return (
         <div className={`music-player ${isExpanded ? 'expanded' : ''}`}>
-            {/* Gizli Audio Element - bot sesini çalar */}
-            <audio ref={audioRef} autoPlay />
-
             {/* Compact Bar */}
             <div className="music-player-bar" onClick={() => setIsExpanded(!isExpanded)}>
                 <div className="music-player-icon">
@@ -173,7 +153,7 @@ export function MusicPlayer({ socket, request, consumeProducer, consumers }: Mus
                 <div className="music-controls-mini" onClick={(e) => e.stopPropagation()}>
                     {/* Mute Button - her zaman görünür */}
                     <button
-                        onClick={toggleMute}
+                        onClick={() => onBotMutedChange(!botMuted)}
                         title={botMuted ? 'Sesi Aç' : 'Sustur'}
                         className={botMuted ? 'muted' : ''}
                     >
@@ -200,7 +180,7 @@ export function MusicPlayer({ socket, request, consumeProducer, consumers }: Mus
                             min="0"
                             max="100"
                             value={botVolume}
-                            onChange={handleVolumeChange}
+                            onChange={(e) => onBotVolumeChange(parseInt(e.target.value))}
                             className="music-volume-slider"
                             title={`Ses: ${botVolume}%`}
                         />
