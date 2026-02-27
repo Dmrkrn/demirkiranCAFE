@@ -251,13 +251,13 @@ export class MusicBotService implements OnModuleInit {
         let isDirectUrl = true;
 
         if (this.isSpotifyUrl(item.url)) {
-            // Spotify IP ban (Rate Limit) yediğimiz için spotdl veya ytsearch kullanmıyoruz. 
-            // Direkt SoundCloud üzerinde aynı şarkıyı aramak en güvenlisi. Titler oembed'den net şekilde geliyor.
-            searchQuery = `scsearch1:${item.title.replace(' - ', ' ')}`;
+            // Spotify IP ban (Rate Limit) yediğimiz için ytsearch kullanıyoruz. OEmbed sayesinde gerçek adı elimizde.
+            // Android player_client ile aratarak bot korumasını eziyoruz.
+            searchQuery = `ytsearch1:${item.title.replace(' - ', ' ').replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, '')}`;
             isDirectUrl = false;
-            this.logger.log(`🔄 Spotify linki güvenli arama (SoundCloud) moduna çevrildi: ${searchQuery}`);
+            this.logger.log(`🔄 Spotify linki güvenli YouTube aramasına çevrildi: ${searchQuery}`);
         } else if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
-            // Önce direkt URL dene, YouTube IP ban (bot check) atarsa stderr'den yakalayıp scsearch (SoundCloud)'a düşeceğiz.
+            // Önce direkt URL dene, YouTube IP ban (bot check) atarsa stderr'den yakalayıp ytsearch'e düşeceğiz.
             searchQuery = item.url;
             isDirectUrl = true;
         }
@@ -266,14 +266,19 @@ export class MusicBotService implements OnModuleInit {
 
         // yt-dlp → FFmpeg → RTP
         // spotdl kullanmıyoruz çünkü rate limit yedik, yt-dlp her şeyi ytsearch ile bulabilir.
-        this.ytdlpProcess = spawn('yt-dlp', [
+        const isWindows = os.platform() === 'win32';
+
+        const ytDlpArgs = [
             '-f', 'bestaudio',
             '-o', '-',
             '--no-playlist',
             '--js-runtimes', 'node',
             '--rm-cache-dir', // Bot korumalarını temizlemek için
-            searchQuery,
-        ], { shell: true });
+            '--extractor-args', 'youtube:player_client=android,web', // YouTube Bot Protection Bypass
+            isWindows ? `"${searchQuery}"` : searchQuery,
+        ];
+
+        this.ytdlpProcess = spawn('yt-dlp', ytDlpArgs, { shell: isWindows });
 
         this.ffmpegProcess = spawn('ffmpeg', [
             '-i', 'pipe:0',        // stdin'den oku (yt-dlp çıkışı)
@@ -286,7 +291,7 @@ export class MusicBotService implements OnModuleInit {
             '-ssrc', '11111111',   // Producer'daki SSRC ile aynı
             '-payload_type', '101', // Producer'daki payload type ile aynı
             `rtp://127.0.0.1:${rtpPort}`,
-        ], { shell: true });
+        ], { shell: isWindows });
 
         // yt-dlp stdout → FFmpeg stdin
         if (this.ytdlpProcess.stdout && this.ffmpegProcess.stdin) {
@@ -318,12 +323,11 @@ export class MusicBotService implements OnModuleInit {
                 // Bot protection hatası yakalama
                 if (msg.includes('Sign in to confirm you’re not a bot')) {
                     this.logger.error(`❌ YOUTUBE BOT KORUMASI DEVREDE! Bu link yt-dlp ile çalınamıyor: ${item.url}`);
-                    // Eski processleri öldür ve SoundCloud arama altyapısıyla tekrar dene (sadece 1 kere)
+                    // Eski processleri öldür ve YouTube Android Client arama altyapısıyla tekrar dene
                     if (isDirectUrl && sessionId === this.playbackSessionId) {
-                        this.logger.log(`🔄 Bot korumasını aşmak için sscsearch1 (SoundCloud) fall-back uygulanıyor...`);
-                        // Queue'nun başına sesarch halini ekle ve killProcesses -> playNext zincirini tetikle
+                        this.logger.log(`🔄 Bot korumasını aşmak için ytsearch1 (Android Client) fall-back uygulanıyor...`);
                         const safeTitle = item.title.replace(' - ', ' ').replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, '');
-                        this.queue.unshift({ ...item, url: `scsearch1:${safeTitle || 'music'}` });
+                        this.queue.unshift({ ...item, url: `ytsearch1:${safeTitle || 'music'}` });
                         this.killProcesses();
                     }
                 }
