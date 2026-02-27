@@ -252,7 +252,7 @@ export class MusicBotService implements OnModuleInit {
 
         if (this.isSpotifyUrl(item.url)) {
             // Spotify IP ban (Rate Limit) yediğimiz için ytsearch kullanıyoruz. OEmbed sayesinde gerçek adı elimizde.
-            // Android player_client ile aratarak bot korumasını eziyoruz.
+            // Android player_client ile aratarak bot korumasını eziyoruz. Eğer IP YouTube'dan tamamen banlıysa scsearch'e de düşecek.
             searchQuery = `ytsearch1:${item.title.replace(' - ', ' ').replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, '')}`;
             isDirectUrl = false;
             this.logger.log(`🔄 Spotify linki güvenli YouTube aramasına çevrildi: ${searchQuery}`);
@@ -323,12 +323,22 @@ export class MusicBotService implements OnModuleInit {
                 // Bot protection hatası yakalama
                 if (msg.includes('Sign in to confirm you’re not a bot')) {
                     this.logger.error(`❌ YOUTUBE BOT KORUMASI DEVREDE! Bu link yt-dlp ile çalınamıyor: ${item.url}`);
-                    // Eski processleri öldür ve YouTube Android Client arama altyapısıyla tekrar dene
-                    if (isDirectUrl && sessionId === this.playbackSessionId) {
-                        this.logger.log(`🔄 Bot korumasını aşmak için ytsearch1 (Android Client) fall-back uygulanıyor...`);
+
+                    if (sessionId === this.playbackSessionId) {
                         const safeTitle = item.title.replace(' - ', ' ').replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, '');
-                        this.queue.unshift({ ...item, url: `ytsearch1:${safeTitle || 'music'}` });
-                        this.killProcesses();
+
+                        // Direkt URL patladıysa -> YT Search Android Client Fallback'ine geç
+                        if (isDirectUrl) {
+                            this.logger.log(`🔄 Bot korumasını aşmak için ytsearch1 (Android Client) fall-back uygulanıyor...`);
+                            this.queue.unshift({ ...item, url: `ytsearch1:${safeTitle || 'music'}` });
+                            this.killProcesses();
+                        }
+                        // YT Search patladıysa -> SoundCloud Fallback'ine geç (Son Şans, Kesin Çözüm)
+                        else if (searchQuery.startsWith('ytsearch')) {
+                            this.logger.log(`🔄 YouTube tamamen bloke etti. Kesin çözüm için scsearch1 (SoundCloud) fall-back uygulanıyor...`);
+                            this.queue.unshift({ ...item, url: `scsearch1:${safeTitle || 'music'}` });
+                            this.killProcesses();
+                        }
                     }
                 }
             }
