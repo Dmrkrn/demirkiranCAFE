@@ -5,6 +5,7 @@ import { types as mediasoupTypes } from 'mediasoup';
 import * as path from 'path';
 import * as os from 'os';
 import * as fs from 'fs';
+import * as https from 'https';
 
 export interface QueueItem {
     url: string;
@@ -146,13 +147,40 @@ export class MusicBotService implements OnModuleInit {
      */
     private getVideoInfo(url: string): Promise<{ title: string; duration?: string }> {
         return new Promise((resolve) => {
-            // Hızlıca varsayılan başlık dön, metadata aramasıyla vakit kaybetme
-            // Gerçek başlık, yt-dlp stream başlarken nowPlaying'e güncellenecek
+            let fetchUrl = '';
+
             if (this.isSpotifyUrl(url)) {
-                resolve({ title: 'Spotify İsteği Yükleniyor...' });
+                fetchUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`;
+            } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                fetchUrl = `https://noembed.com/embed?url=${encodeURIComponent(url)}`;
+            } else {
+                resolve({ title: 'Bilinmeyen Müzik İsteği' });
                 return;
             }
-            resolve({ title: 'YouTube İsteği Yükleniyor...' });
+
+            https.get(fetchUrl, (res) => {
+                let data = '';
+                res.on('data', (chunk) => data += chunk);
+                res.on('end', () => {
+                    try {
+                        const json = JSON.parse(data);
+                        let title = json.title || '';
+
+                        // Sanatçı adını başlığa ekle (eğer zaten içinde yoksa)
+                        if (json.author_name && title && !title.toLowerCase().includes(json.author_name.toLowerCase()) && json.author_name !== 'YouTube') {
+                            title = `${json.author_name} - ${title}`;
+                        } else if (!title && json.author_name) {
+                            title = json.author_name;
+                        }
+
+                        resolve({ title: title.trim() || 'Gizli veya Bilinmeyen Şarkı' });
+                    } catch {
+                        resolve({ title: 'Şarkı Adı Alınamadı' });
+                    }
+                });
+            }).on('error', () => {
+                resolve({ title: 'Bağlantı Hatası (Metadata)' });
+            });
         });
     }
 
@@ -218,18 +246,20 @@ export class MusicBotService implements OnModuleInit {
             startedAt: Date.now(),
         };
 
-        // URL tipine göre query oluştur (Bot protection ve Rate Limit aşmak için ytsearch kullanıyoruz)
+        // URL tipine göre query oluştur (Bot protection ve Rate Limit aşmak için ytsearch/scsearch kullanıyoruz)
         let searchQuery = item.url;
+        let isDirectUrl = true;
+
         if (this.isSpotifyUrl(item.url)) {
-            // Spotify IP ban (Rate Limit) yediğimiz için spotdl kullanmıyoruz. URL'den ID'yi alıp YouTube'da aratıyoruz.
-            const trackId = item.url.split('/').pop()?.split('?')[0];
-            searchQuery = `ytsearch1:spotify track ${trackId || item.url} audio lyrics`;
-            this.logger.log(`🔄 Spotify linki YouTube aramasına çevrildi: ${searchQuery} `);
+            // Spotify IP ban (Rate Limit) yediğimiz için spotdl veya ytsearch kullanmıyoruz. 
+            // Direkt SoundCloud üzerinde aynı şarkıyı aramak en güvenlisi. Titler oembed'den net şekilde geliyor.
+            searchQuery = `scsearch1:${item.title.replace(' - ', ' ')}`;
+            isDirectUrl = false;
+            this.logger.log(`🔄 Spotify linki güvenli arama (SoundCloud) moduna çevrildi: ${searchQuery}`);
         } else if (item.url.includes('youtube.com') || item.url.includes('youtu.be')) {
-            // Eğer URL ise ve bot korumasına takılma ihtimali varsa, bazen ytsearch daha güvenlidir.
-            // Fakat önce URL'yi direkt deneyelim, olmazsa hata yakalayıp search'e döneceğiz (ileride).
-            // Şimdilik direkt URL'i veriyoruz ama --rm-cache-dir ile başlatıyoruz.
+            // Önce direkt URL dene, YouTube IP ban (bot check) atarsa stderr'den yakalayıp scsearch (SoundCloud)'a düşeceğiz.
             searchQuery = item.url;
+            isDirectUrl = true;
         }
 
         this.logger.log(`🎵 Pipeline başlatılıyor: ${searchQuery} → port ${rtpPort} `);
@@ -287,16 +317,14 @@ export class MusicBotService implements OnModuleInit {
 
                 // Bot protection hatası yakalama
                 if (msg.includes('Sign in to confirm you’re not a bot')) {
-                    this.logger.error(`❌ YOUTUBE BOT KORUMASI DEVREDE! Bu link çalınamıyor: ${item.url}`);
-                    // Eski processleri öldür ve search stringiyle tekrar dene (1 kereye mahsus)
-                    if (searchQuery === item.url && sessionId === this.playbackSessionId) {
-                        this.logger.log(`🔄 Bot koruması yüzünden ytsearch1 fall-back uygulanıyor...`);
-                        const videoId = item.url.split('v=')[1]?.split('&')[0] || item.url.split('youtu.be/')[1]?.split('?')[0];
-                        if (videoId) {
-                            // Queue'nun başına ytsearch halini ekle ve next yap
-                            this.queue.unshift({ ...item, url: `ytsearch1:${videoId} audio` });
-                            this.killProcesses(); // Bu, close eventlerini tetikleyecek ama code 183/null döneceği için playNext tetiklenecek
-                        }
+                    this.logger.error(`❌ YOUTUBE BOT KORUMASI DEVREDE! Bu link yt-dlp ile çalınamıyor: ${item.url}`);
+                    // Eski processleri öldür ve SoundCloud arama altyapısıyla tekrar dene (sadece 1 kere)
+                    if (isDirectUrl && sessionId === this.playbackSessionId) {
+                        this.logger.log(`🔄 Bot korumasını aşmak için sscsearch1 (SoundCloud) fall-back uygulanıyor...`);
+                        // Queue'nun başına sesarch halini ekle ve killProcesses -> playNext zincirini tetikle
+                        const safeTitle = item.title.replace(' - ', ' ').replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, '');
+                        this.queue.unshift({ ...item, url: `scsearch1:${safeTitle || 'music'}` });
+                        this.killProcesses();
                     }
                 }
             }
