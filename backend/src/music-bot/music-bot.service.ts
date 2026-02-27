@@ -147,7 +147,7 @@ export class MusicBotService implements OnModuleInit {
                 '--print', '%(title)s',
                 '--print', '%(duration_string)s',
                 '--no-playlist',
-                '--js-runtimes', 'nodejs',
+                '--js-runtimes', 'node',
                 url,
             ]);
 
@@ -323,7 +323,7 @@ export class MusicBotService implements OnModuleInit {
                 '-f', 'bestaudio',
                 '-o', '-',
                 '--no-playlist',
-                '--js-runtimes', 'nodejs',
+                '--js-runtimes', 'node',
                 item.url,
             ]);
 
