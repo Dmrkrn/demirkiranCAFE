@@ -274,9 +274,20 @@ export class MusicBotService implements OnModuleInit {
             '--no-playlist',
             '--js-runtimes', 'node',
             '--rm-cache-dir', // Bot korumalarını temizlemek için
-            '--extractor-args', 'youtube:player_client=android,web', // YouTube Bot Protection Bypass
-            isWindows ? `"${searchQuery}"` : searchQuery,
         ];
+
+        // 🍪 DİSCORD BOTLARININ GİZLİ SİLAHI: Çerezler (Cookies)
+        // Eğer sunucu dizininde cookies.txt varsa onu kullan, yoksa ios/tv istemcisi taklidi yap
+        const cookiesPath = path.join(process.cwd(), 'cookies.txt');
+        if (fs.existsSync(cookiesPath)) {
+            this.logger.log('🍪 cookies.txt bulundu! YouTube bot koruması tamamen devreden çıkıyor.');
+            ytDlpArgs.push('--cookies', cookiesPath);
+        } else {
+            this.logger.log('⚠️ cookies.txt bulunamadı. Anonim (ios,tv) istemcisiyle deneniyor...');
+            ytDlpArgs.push('--extractor-args', 'youtube:player_client=ios,tv,web_creator'); // Android artık GVS PO Token istiyor, iOS ve TV daha güvenli
+        }
+
+        ytDlpArgs.push(isWindows ? `"${searchQuery}"` : searchQuery);
 
         this.ytdlpProcess = spawn('yt-dlp', ytDlpArgs, { shell: isWindows });
 
