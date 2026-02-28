@@ -6,4 +6,6 @@ services:
       - "3000:3000/tcp" # WebServer & Socket.IO
       - "40000-40100:40000-40100/udp" # Mediasoup RTP (UDP range)
     env_file: .env
+    volumes:
+      - ./cookies.txt:/app/cookies.txt:ro # YouTube bot bypass için cookie dosyası (read-only)
     restart: unless-stopped
