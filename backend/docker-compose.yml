@@ -7,5 +7,5 @@ services:
       - "40000-40100:40000-40100/udp" # Mediasoup RTP (UDP range)
     env_file: .env
     volumes:
-      - ./cookies.txt:/app/cookies.txt:ro # YouTube bot bypass için cookie dosyası (read-only)
+      - ./cookies.txt:/app/cookies.txt # YouTube bot bypass için cookie dosyası (yt-dlp güncelleyebilsin diye rw lazim)
     restart: unless-stopped
