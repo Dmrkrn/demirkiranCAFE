@@ -272,6 +272,7 @@ export class MusicBotService implements OnModuleInit {
             '-f', 'bestaudio',
             '-o', '-',
             '--no-playlist',
+            '--match-filter', 'duration > 60', // SoundCloud premium'daki 30sn preview'ları atla
             '--js-runtimes', 'node',
             '--rm-cache-dir', // Bot korumalarını temizlemek için
         ];
@@ -346,8 +347,8 @@ export class MusicBotService implements OnModuleInit {
                         }
                         // YT Search patladıysa -> SoundCloud Fallback'ine geç (Son Şans, Kesin Çözüm)
                         else if (searchQuery.startsWith('ytsearch')) {
-                            this.logger.log(`🔄 YouTube tamamen bloke etti. Kesin çözüm için scsearch1 (SoundCloud) fall-back uygulanıyor...`);
-                            this.queue.unshift({ ...item, url: `scsearch1:${safeTitle || 'music'}` });
+                            this.logger.log(`🔄 YouTube tamamen bloke etti. Kesin çözüm için scsearch5 (SoundCloud) fall-back uygulanıyor...`);
+                            this.queue.unshift({ ...item, url: `scsearch5:${safeTitle || 'music'}` });
                             this.killProcesses();
                         }
                     }
