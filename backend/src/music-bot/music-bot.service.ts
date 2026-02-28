@@ -147,40 +147,60 @@ export class MusicBotService implements OnModuleInit {
      */
     private getVideoInfo(url: string): Promise<{ title: string; duration?: string }> {
         return new Promise((resolve) => {
-            let fetchUrl = '';
-
             if (this.isSpotifyUrl(url)) {
-                fetchUrl = `https://open.spotify.com/oembed?url=${encodeURIComponent(url)}`;
-            } else if (url.includes('youtube.com') || url.includes('youtu.be')) {
-                fetchUrl = `https://noembed.com/embed?url=${encodeURIComponent(url)}`;
-            } else {
-                resolve({ title: 'Bilinmeyen Müzik İsteği' });
+                // Spotify OEmbed author_name vermediği için sayfanın <title> etiketini kazıyoruz
+                https.get(url, (res) => {
+                    let html = '';
+                    res.on('data', (chunk) => html += chunk);
+                    res.on('end', () => {
+                        const titleMatch = html.match(/<title>(.*?)<\/title>/);
+                        if (titleMatch && titleMatch[1]) {
+                            // Örn: "ŞarkıAdı - song and lyrics by Sanatçı | Spotify" -> "ŞarkıAdı Sanatçı"
+                            let cleanTitle = titleMatch[1]
+                                .replace(' - song and lyrics by ', ' ')
+                                .replace(' | Spotify', '')
+                                .replace('song by', '')
+                                .trim();
+                            resolve({ title: cleanTitle });
+                        } else {
+                            resolve({ title: 'Spotify Şarkısı' });
+                        }
+                    });
+                }).on('error', () => {
+                    resolve({ title: 'Bağlantı Hatası (Spotify)' });
+                });
                 return;
             }
 
-            https.get(fetchUrl, (res) => {
-                let data = '';
-                res.on('data', (chunk) => data += chunk);
-                res.on('end', () => {
-                    try {
-                        const json = JSON.parse(data);
-                        let title = json.title || '';
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                const fetchUrl = `https://noembed.com/embed?url=${encodeURIComponent(url)}`;
+                https.get(fetchUrl, (res) => {
+                    let data = '';
+                    res.on('data', (chunk) => data += chunk);
+                    res.on('end', () => {
+                        try {
+                            const json = JSON.parse(data);
+                            let title = json.title || '';
 
-                        // Sanatçı adını başlığa ekle (eğer zaten içinde yoksa)
-                        if (json.author_name && title && !title.toLowerCase().includes(json.author_name.toLowerCase()) && json.author_name !== 'YouTube') {
-                            title = `${json.author_name} - ${title}`;
-                        } else if (!title && json.author_name) {
-                            title = json.author_name;
+                            // Sanatçı adını başlığa ekle (eğer zaten içinde yoksa)
+                            if (json.author_name && title && !title.toLowerCase().includes(json.author_name.toLowerCase()) && json.author_name !== 'YouTube') {
+                                title = `${json.author_name} - ${title}`;
+                            } else if (!title && json.author_name) {
+                                title = json.author_name;
+                            }
+
+                            resolve({ title: title.trim() || 'Gizli veya Bilinmeyen Şarkı' });
+                        } catch {
+                            resolve({ title: 'Şarkı Adı Alınamadı' });
                         }
-
-                        resolve({ title: title.trim() || 'Gizli veya Bilinmeyen Şarkı' });
-                    } catch {
-                        resolve({ title: 'Şarkı Adı Alınamadı' });
-                    }
+                    });
+                }).on('error', () => {
+                    resolve({ title: 'Bağlantı Hatası (YouTube)' });
                 });
-            }).on('error', () => {
-                resolve({ title: 'Bağlantı Hatası (Metadata)' });
-            });
+                return;
+            }
+
+            resolve({ title: 'Bilinmeyen Müzik İsteği' });
         });
     }
 
@@ -251,7 +271,7 @@ export class MusicBotService implements OnModuleInit {
 
         // URL tipine göre query oluştur (Bot protection ve Rate Limit aşmak için ytsearch/scsearch kullanıyoruz)
         let searchQuery = item.url;
-        let isDirectUrl = true;
+        let isDirectUrl = item.url.startsWith('http');
 
         if (this.isSpotifyUrl(item.url)) {
             searchQuery = `ytsearch1:${item.title.replace(' - ', ' ').replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, '')}`;
