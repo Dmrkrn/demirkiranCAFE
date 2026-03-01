@@ -289,10 +289,9 @@ export class MusicBotService implements OnModuleInit {
 
         const isWindows = os.platform() === 'win32';
 
-        // Aşama 1: yt-dlp ile doğrudan stream URL'sini al (--get-url)
         const ytDlpArgs = [
             '-f', 'bestaudio',
-            '--get-url',
+            '-o', '-',             // Doğrudan stdout'a yaz
             '--no-playlist',
             '--js-runtimes', 'node',
             '--rm-cache-dir', // Bot korumalarını temizlemek için
@@ -317,70 +316,13 @@ export class MusicBotService implements OnModuleInit {
         let fallbackTriggered = false;
 
         try {
-            this.logger.log(`🔗 Stream Adresi Çıkarılıyor (yt-dlp)...`);
+            this.logger.log(`🔗 Pipeline Başlatılıyor (yt-dlp pipe:0 FFmpeg)...`);
 
-            // Promise tabanlı ChildProcess execution (exec yerine spawn kullanıyoruz ki stderr streamleri canlı kontrol edilebilsin)
-            const streamUrl = await new Promise<string>((resolve, reject) => {
-                let stdoutData = '';
-                let stderrData = '';
-
-                this.ytdlpProcess = spawn('yt-dlp', ytDlpArgs, { shell: isWindows });
-
-                this.ytdlpProcess.stdout?.on('data', (data) => {
-                    stdoutData += data.toString();
-                });
-
-                this.ytdlpProcess.stderr?.on('data', (data) => {
-                    const msg = data.toString().trim();
-                    stderrData += msg + '\n';
-                    if (msg) this.logger.log(`📥 yt-dlp: ${msg.substring(0, 200)}`);
-
-                    // Bot protection hatası yakalama
-                    if (msg.includes('Sign in to confirm you’re not a bot')) {
-                        this.logger.error(`❌ YOUTUBE BOT KORUMASI DEVREDE! Bu link yt-dlp ile çalınamıyor: ${item.url}`);
-
-                        if (sessionId === this.playbackSessionId && !fallbackTriggered) {
-                            fallbackTriggered = true;
-                            // Direkt URL patladıysa -> YT Search Android Client Fallback'ine geç
-                            if (isDirectUrl) {
-                                this.logger.log(`🔄 Bot korumasını aşmak için ytsearch1 (Android Client) fall-back uygulanıyor...`);
-                                this.queue.unshift({ ...item, url: `ytsearch1:${safeTitleForFallback || 'music'}` });
-                            }
-                            // YT Search patladıysa -> SoundCloud Fallback'ine geç (Son Şans, Kesin Çözüm)
-                            else if (searchQuery.startsWith('ytsearch')) {
-                                this.logger.log(`🔄 YouTube tamamen bloke etti. Kesin çözüm için scsearch5 (SoundCloud) fall-back uygulanıyor...`);
-                                this.queue.unshift({ ...item, url: `scsearch5:${safeTitleForFallback || 'music'}` });
-                            }
-                            reject(new Error('YOUTUBE_BOT_PROTECTION'));
-                        }
-                    }
-                });
-
-                this.ytdlpProcess.on('close', (code) => {
-                    if (fallbackTriggered) return;
-
-                    const urls = stdoutData.trim().split('\n').filter(u => u.startsWith('http'));
-                    if (code === 0 && urls.length > 0) {
-                        resolve(urls[urls.length - 1]); // Master URL
-                    } else {
-                        reject(new Error(`yt-dlp stream adresini bulamadı (Code: ${code}).\n${stderrData.substring(0, 500)}`));
-                    }
-                });
-
-                this.ytdlpProcess.on('error', (err) => {
-                    if (!fallbackTriggered) reject(err);
-                });
-            });
-
-            if (!streamUrl || fallbackTriggered) return;
-
-            // Aşama 2: Bulunan stream URL'sini doğrudan FFmpeg'e ver (Pipe kullanmadan)
-            this.logger.log(`✅ Stream Adresi Bulundu. FFmpeg başlatılıyor... (Uzunluk: ${streamUrl.length} char)`);
+            this.ytdlpProcess = spawn('yt-dlp', ytDlpArgs, { shell: isWindows });
 
             this.ffmpegProcess = spawn('ffmpeg', [
-                '-re',                 // Real-time okuma (Canlı yayın hızı)
-                '-protocol_whitelist', 'file,http,https,tcp,tls,crypto', // HLS/m3u8 parsing izni
-                '-i', streamUrl,       // Doğrudan URL veriyoruz (HLS/m3u8 chunk parsing FFmpeg'e ait)
+                '-re',                 // Real-time okuma
+                '-i', 'pipe:0',        // Stdin'den oku (yt-dlp'den)
                 '-map', '0:a:0',       // Sadece ses
                 '-acodec', 'libopus',  // Opus codec
                 '-ab', '128k',         // 128kbps bitrate
@@ -391,6 +333,51 @@ export class MusicBotService implements OnModuleInit {
                 '-payload_type', '101', // Producer'daki payload type ile aynı
                 `rtp://127.0.0.1:${rtpPort}`,
             ], { shell: isWindows });
+
+            // Pipe the streams
+            if (this.ytdlpProcess.stdout && this.ffmpegProcess.stdin) {
+                this.ytdlpProcess.stdout.pipe(this.ffmpegProcess.stdin);
+            }
+
+            // Hata Yönetimi: EPIPE hatası loglamasını kapat (FFmpeg close olduğunda yt-dlp "write to closed file" verir)
+            this.ffmpegProcess.stdin?.on('error', (err: any) => {
+                if (err.code !== 'EPIPE' && err.code !== 'EOF') {
+                    this.logger.error(`❌ FFmpeg stdin hatası: ${err.message}`);
+                }
+            });
+
+            this.ytdlpProcess.stdout?.on('error', (err: any) => {
+                if (err.code !== 'EPIPE' && err.code !== 'EOF') {
+                    this.logger.error(`❌ yt-dlp stdout hatası: ${err.message}`);
+                }
+            });
+
+            this.ytdlpProcess.stderr?.on('data', (data) => {
+                const msg = data.toString().trim();
+                if (msg) this.logger.log(`📥 yt-dlp: ${msg.substring(0, 200)}`);
+
+                // Bot protection hatası yakalama
+                if (msg.includes('Sign in to confirm you’re not a bot')) {
+                    this.logger.error(`❌ YOUTUBE BOT KORUMASI DEVREDE! Bu link yt-dlp ile çalınamıyor: ${item.url}`);
+
+                    if (sessionId === this.playbackSessionId && !fallbackTriggered) {
+                        fallbackTriggered = true;
+                        // Direkt URL patladıysa -> YT Search Android Client Fallback'ine geç
+                        if (isDirectUrl) {
+                            this.logger.log(`🔄 Bot korumasını aşmak için ytsearch1 (Android Client) fall-back uygulanıyor...`);
+                            this.queue.unshift({ ...item, url: `ytsearch1:${safeTitleForFallback || 'music'}` });
+                        }
+                        // YT Search patladıysa -> SoundCloud Fallback'ine geç (Son Şans, Kesin Çözüm)
+                        else if (searchQuery.startsWith('ytsearch')) {
+                            this.logger.log(`🔄 YouTube tamamen bloke etti. Kesin çözüm için scsearch5 (SoundCloud) fall-back uygulanıyor...`);
+                            this.queue.unshift({ ...item, url: `scsearch5:${safeTitleForFallback || 'music'}` });
+                        }
+
+                        this.killProcesses();
+                        this.playNext();
+                    }
+                }
+            });
 
             // FFmpeg debug log
             this.ffmpegProcess.stderr?.on('data', (data) => {
@@ -405,7 +392,7 @@ export class MusicBotService implements OnModuleInit {
             // Şarkı bittiğinde sıradakini çal
             this.ffmpegProcess.on('close', (code) => {
                 this.logger.log(`🎵 FFmpeg kapandı (code: ${code}, session: ${sessionId})`);
-                if (sessionId !== this.playbackSessionId) return;
+                if (sessionId !== this.playbackSessionId || fallbackTriggered) return;
 
                 if (code === 0 || code === 255 || code === null || code === 183 || code === 1) {
                     this.playNext();
@@ -414,8 +401,7 @@ export class MusicBotService implements OnModuleInit {
 
             this.ffmpegProcess.on('error', (err) => {
                 this.logger.error(`❌ FFmpeg spawn hatası: ${err.message}`);
-                // Hata alırsak sıradakine geçmeye çalış
-                if (sessionId === this.playbackSessionId) this.playNext();
+                if (sessionId === this.playbackSessionId && !fallbackTriggered) this.playNext();
             });
 
             // Broadcast: Şu an çalan
