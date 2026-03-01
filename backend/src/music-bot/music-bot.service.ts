@@ -266,6 +266,12 @@ export class MusicBotService implements OnModuleInit {
             startedAt: Date.now(),
         };
 
+        // Yükleme (Stream Çıkarma) esnasında UI'da Stop/Skip tuşlarının çıkması için hemen broadcast atıyoruz
+        this.onNowPlayingChange?.({
+            nowPlaying: this.nowPlaying,
+            producerId: null,
+        });
+
         // URL tipine göre query oluştur (Bot protection ve Rate Limit aşmak için ytsearch/scsearch kullanıyoruz)
         let searchQuery = item.url;
         let isDirectUrl = item.url.startsWith('http');
@@ -288,7 +294,6 @@ export class MusicBotService implements OnModuleInit {
             '-f', 'bestaudio',
             '--get-url',
             '--no-playlist',
-            '--match-filter', 'duration > 60', // SoundCloud premium'daki 30sn preview'ları atla
             '--js-runtimes', 'node',
             '--rm-cache-dir', // Bot korumalarını temizlemek için
         ];
