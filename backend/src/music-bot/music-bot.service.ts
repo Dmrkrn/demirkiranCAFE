@@ -220,14 +220,14 @@ export class MusicBotService implements OnModuleInit {
                 requestedBy,
             };
 
-            // Eğer şu an çalan bir şey yoksa direkt başlat
+            this.queue.push(item);
+            this.onQueueChange?.({ queue: this.getQueue() });
+
+            // Eğer şu an çalan bir şey yoksa sıradakini(bunu) başlat
             if (!this.nowPlaying) {
-                await this.startPlaying(item);
-                return { success: true, message: `🎵 Çalınıyor: ** ${info.title}** `, title: info.title };
+                this.playNext().catch(err => this.logger.error(`PlayNext başlatılamadı: ${err}`));
+                return { success: true, message: `🎵 Başlatılıyor: ** ${info.title}** `, title: info.title };
             } else {
-                // Kuyruğa ekle
-                this.queue.push(item);
-                this.onQueueChange?.({ queue: this.getQueue() });
                 return {
                     success: true,
                     message: `📋 Kuyruğa eklendi(#${this.queue.length}): ** ${info.title}** `,
@@ -247,12 +247,9 @@ export class MusicBotService implements OnModuleInit {
      * Şarkıyı başlat (FFmpeg + yt-dlp pipeline)
      */
     private async startPlaying(item: QueueItem): Promise<void> {
-        // Yeni session başlat — eski close handler'ları devre dışı kalır
-        this.playbackSessionId++;
-        const sessionId = this.playbackSessionId;
-
-        // Varsa eski processleri kapat
+        // Varsa eski processleri kapat (ve yeni bir session başlatır)
         this.killProcesses();
+        const sessionId = this.playbackSessionId;
 
         // Transport hazırla
         const ready = await this.ensureTransport();
