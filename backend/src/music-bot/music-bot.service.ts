@@ -379,6 +379,7 @@ export class MusicBotService implements OnModuleInit {
 
             this.ffmpegProcess = spawn('ffmpeg', [
                 '-re',                 // Real-time okuma (Canlı yayın hızı)
+                '-protocol_whitelist', 'file,http,https,tcp,tls,crypto', // HLS/m3u8 parsing izni
                 '-i', streamUrl,       // Doğrudan URL veriyoruz (HLS/m3u8 chunk parsing FFmpeg'e ait)
                 '-map', '0:a:0',       // Sadece ses
                 '-acodec', 'libopus',  // Opus codec
