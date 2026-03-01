@@ -419,16 +419,9 @@ export class MusicBotService implements OnModuleInit {
             this.logger.log(`🎵 Çalınıyor: ${item.title} → RTP port ${rtpPort}`);
 
         } catch (error) {
-            this.logger.error(`❌ Pipeline hatası: ${error.message} `);
-            if (error.message === 'YOUTUBE_BOT_PROTECTION') {
-                this.killProcesses();
-                await this.playNext();
-            } else {
-                // Diğer her türlü hatada sıradaki şarkıya geç
-                if (sessionId === this.playbackSessionId) {
-                    this.playNext();
-                }
-            }
+            this.logger.error(`❌ Pipeline hatası: ${error.message}`);
+            this.killProcesses();
+            throw error; // playNext'in yakalayabilmesi için hatayı yukarı fırlat
         }
     }
 
@@ -453,8 +446,18 @@ export class MusicBotService implements OnModuleInit {
                 this.onNowPlayingChange?.({ nowPlaying: null, producerId: null });
                 this.logger.log('🎵 Kuyruk bitti');
             }
+        } catch (error) {
+            this.logger.warn(`🔄 Hata yakalandı, 3 saniye sonra sıradakine geçiliyor...`);
+            setTimeout(() => {
+                this.isTransitioning = false; // Timeout tetiklediğinde kilidi serbest bırak
+                this.playNext();
+            }, 3000);
+            return; // Finally bloğu çalışsın ama asıl isTransitioning'in serbest kalmasını timeout'ta yaptık
         } finally {
-            this.isTransitioning = false;
+            // Şarkı başarıyla çalıyorsa veya kuyruk bittiyse kilit serbest kalsın
+            if (!this.nowPlaying || this.audioProducer) {
+                this.isTransitioning = false;
+            }
         }
     }
 
@@ -537,9 +540,10 @@ export class MusicBotService implements OnModuleInit {
     }
 
     /**
-     * Process'leri temizle
+     * Process'leri temizle ve session'ı geçersiz kıl
      */
     private killProcesses(): void {
+        this.playbackSessionId = Date.now(); // Asenkron 'close' listenerlarını iptal et
         if (this.ffmpegProcess && !this.ffmpegProcess.killed) {
             this.ffmpegProcess.kill('SIGKILL');
             this.ffmpegProcess = null;
