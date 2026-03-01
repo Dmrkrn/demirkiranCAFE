@@ -307,7 +307,12 @@ export class MusicBotService implements OnModuleInit {
 
         ytDlpArgs.push(isWindows ? `"${searchQuery}"` : searchQuery);
 
-        const safeTitleForFallback = item.title.replace(' - ', ' ').replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, '');
+        const safeTitleForFallback = item.title
+            .replace(/official|music|video|audio|lyric|lyrics|hq/gi, '')
+            .replace(' - ', ' ')
+            .replace(/[^a-zA-Z0-9 ıIğĞüÜşŞiİöÖçÇ]/g, ' ')
+            .trim()
+            .replace(/\s+/g, ' ');
 
         let fallbackTriggered = false;
 
