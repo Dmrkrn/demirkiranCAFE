@@ -13,9 +13,9 @@ import { MusicBotService } from './music-bot.service';
  * MusicBotGateway
  * ===============
  * 
- * Discord tarzı müzik botu gateway'i.
- * Bot, sanal bir kullanıcı olarak ses kanalına katılır.
- * Producer'ı normal signaling akışıyla tüm client'lara dağıtılır.
+ * Watch2Gether tarzı yerleşik müzik botu gateway'i.
+ * Sunucu tarafında indirme yapmaz, sadece state (çalıyor, durdu)
+ * ve URL bilgilerini client'lardaki oynatıcılara senkronize eder.
  */
 @WebSocketGateway({
     cors: { origin: '*' },
@@ -32,26 +32,19 @@ export class MusicBotGateway implements OnModuleInit {
         this.musicBotService.setCallbacks(
             // onNowPlayingChange - şu an çalan bilgisi
             (data) => {
-                this.server.emit('music-now-playing', data);
-                this.logger.log(`🎵 Now Playing: ${data.nowPlaying?.title || 'Yok'}`);
+                // Send the current playing track and also the paused state of the service
+                this.server.emit('music-now-playing', {
+                    nowPlaying: data.nowPlaying,
+                    isPaused: this.musicBotService.getQueue().isPaused
+                });
+                this.logger.log(`🎵 Now Playing Sync: ${data.nowPlaying?.title || 'Yok'} (Paused: ${this.musicBotService.getQueue().isPaused})`);
             },
             // onQueueChange - kuyruk değişti
             (data) => {
                 this.server.emit('music-queue-update', data);
-            },
-            // onProducerReady - bot producer oluşturuldu → tüm client'lara bildir
-            // Bu sayede normal signaling akışıyla auto-consume olur (Discord gibi)
-            (producerId: string) => {
-                this.server.emit('new-producer', {
-                    producerId,
-                    peerId: 'music-bot',
-                    kind: 'audio',
-                    appData: { isBot: true, botType: 'music' },
-                });
-                this.logger.log(`🎵 Bot producer broadcast edildi: ${producerId}`);
-            },
+            }
         );
-        this.logger.log('🎵 MusicBotGateway hazır');
+        this.logger.log('🎵 MusicBotGateway hazır (Watch2Gether Mode)');
     }
 
     @SubscribeMessage('music-play')
@@ -60,14 +53,14 @@ export class MusicBotGateway implements OnModuleInit {
         @MessageBody() data: { url: string },
     ) {
         const username = (client as any).username || 'Anonim';
-        this.logger.log(`🎵 Play: ${data.url} (${username})`);
+        this.logger.log(`🎵 Play İstendi: ${data.url} (${username})`);
         return await this.musicBotService.play(data.url, username);
     }
 
     @SubscribeMessage('music-skip')
-    async handleSkip(@ConnectedSocket() client: Socket) {
+    handleSkip(@ConnectedSocket() client: Socket) {
         const username = (client as any).username || 'Anonim';
-        return { message: await this.musicBotService.skip(username) };
+        return { message: this.musicBotService.skip(username) };
     }
 
     @SubscribeMessage('music-stop')
@@ -83,5 +76,12 @@ export class MusicBotGateway implements OnModuleInit {
     @SubscribeMessage('music-queue')
     handleQueue(@ConnectedSocket() client: Socket) {
         return this.musicBotService.getQueue();
+    }
+
+    // YENİ: Client'taki React Player şarkı bittiğini bildirdiğinde
+    @SubscribeMessage('music-ended')
+    handleMusicEnded(@ConnectedSocket() client: Socket) {
+        this.logger.log(`🎵 Şarkı bitti (Client bildirdi), sıradakine geçiliyor...`);
+        this.musicBotService.playNext();
     }
 }

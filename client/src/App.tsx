@@ -944,15 +944,11 @@ function App() {
                             </div>
                         </div>
 
-                        {/* Müzik Botu */}
+                        {/* Müzik Botu (Frontend Embedded Architecture) */}
                         {isJoined && (
                             <MusicPlayer
                                 socket={socket}
                                 request={request}
-                                botVolume={botVolume}
-                                botMuted={botMuted}
-                                onBotVolumeChange={(v) => { setBotVolume(v); localStorage.setItem('musicBotVolume', v.toString()); }}
-                                onBotMutedChange={(m) => { setBotMuted(m); localStorage.setItem('musicBotMuted', m.toString()); }}
                             />
                         )}
 

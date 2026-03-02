@@ -1,18 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import ReactPlayer from 'react-player';
 import './MusicPlayer.css';
 
 interface MusicPlayerProps {
     socket: any;
     request: <T, R>(event: string, data?: T) => Promise<R>;
-    botVolume: number;
-    botMuted: boolean;
-    onBotVolumeChange: (volume: number) => void;
-    onBotMutedChange: (muted: boolean) => void;
+    // Ses artık react-player ile kendi üzerinde olduğu için ekstra app.tsx'e bağlamamıza gerek yok, kendi volümü yönetiyoruz
+    botVolume?: number;
+    botMuted?: boolean;
+    onBotVolumeChange?: (volume: number) => void;
+    onBotMutedChange?: (muted: boolean) => void;
 }
 
 interface NowPlaying {
     title: string;
     url: string;
+    thumbnail?: string;
     requestedBy: string;
     startedAt: number;
 }
@@ -25,35 +28,45 @@ interface QueueItem {
 }
 
 /**
- * MusicPlayer - Discord tarzı müzik botu kontrol paneli
+ * MusicPlayer - Embedded Discord-Style Visual MP3 Bot
  * 
- * Ses yönetimi bu bileşende YAPILMAZ.
- * Bot sesi normal signaling akışıyla (new-producer → consume) tüm client'lara 
- * dağıtılır ve App.tsx'deki AudioPlayer ile çalınır.
- * Bu bileşen sadece UI kontrolleri sunar.
+ * Sunucu tarafını tamamen hafiflettik! Artık videolar sunucuda inme veya ffmpeg ile çevrilme ile 
+ * uğraşmıyor. Şarkı listesi sunucudan Socket üzerinden dağılıyor ve "bu bilgisayardaki" 
+ * React Player üzerinden pürüzsüz orijinal YouTube sesiyle anında çalıyor.
  */
 export function MusicPlayer({
     socket, request,
-    botVolume, botMuted,
-    onBotVolumeChange, onBotMutedChange,
 }: MusicPlayerProps) {
     const [nowPlaying, setNowPlaying] = useState<NowPlaying | null>(null);
     const [queue, setQueue] = useState<QueueItem[]>([]);
+
+    // Player durumları
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [isServerPaused, setIsServerPaused] = useState(false);
+    const [localVolume, setLocalVolume] = useState(70);
+    const [localMuted, setLocalMuted] = useState(false);
+
+    // UI durumları
     const [isExpanded, setIsExpanded] = useState(false);
     const [urlInput, setUrlInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
 
+    const playerRef = useRef<any>(null);
+
     // Socket event listener'ları
     useEffect(() => {
         if (!socket) return;
 
-        const handleNowPlaying = (data: { nowPlaying: NowPlaying | null }) => {
+        const handleNowPlaying = (data: { nowPlaying: NowPlaying | null, isPaused: boolean }) => {
             setNowPlaying(data.nowPlaying);
+            setIsServerPaused(data.isPaused || false);
+            // Eğer müzik varsa ve sunucu duraklatmadıysa çal
+            setIsPlaying(!!data.nowPlaying && !data.isPaused);
         };
 
-        const handleQueueUpdate = (data: { queue: QueueItem[] }) => {
-            setQueue(data.queue);
+        const handleQueueUpdate = (data: { queue: QueueItem[], isPaused: boolean }) => {
+            setQueue(data.queue || []);
         };
 
         socket.on('music-now-playing', handleNowPlaying);
@@ -64,6 +77,8 @@ export function MusicPlayer({
             if (data) {
                 setNowPlaying(data.nowPlaying);
                 setQueue(data.queue || []);
+                setIsServerPaused(data.isPaused || false);
+                setIsPlaying(!!data.nowPlaying && !data.isPaused);
             }
         }).catch(() => { });
 
@@ -71,9 +86,9 @@ export function MusicPlayer({
             socket.off('music-now-playing', handleNowPlaying);
             socket.off('music-queue-update', handleQueueUpdate);
         };
-    }, [socket]);
+    }, [socket, request]);
 
-    const handlePlay = useCallback(async () => {
+    const handlePlayRequest = useCallback(async () => {
         if (!urlInput.trim()) return;
         setIsLoading(true);
         setStatusMessage('🔍 Şarkı aranıyor...');
@@ -106,13 +121,50 @@ export function MusicPlayer({
         setTimeout(() => setStatusMessage(''), 3000);
     }, [request]);
 
+    // React Player Music Bittiğinde sunucuya sıradakini açmasını söyle
+    const handleMusicEnded = () => {
+        if (socket) {
+            socket.emit('music-ended');
+        }
+    };
+
     return (
         <div className={`music-player ${isExpanded ? 'expanded' : ''}`}>
+            {/* Görünmez (veya minik widget) React YouTube Player */}
+            {nowPlaying && (
+                <div style={{ display: isExpanded ? 'block' : 'none', width: '100%', height: '120px', borderRadius: '8px', overflow: 'hidden', marginBottom: '10px' }}>
+                    <ReactPlayer
+                        ref={playerRef}
+                        url={nowPlaying.url}
+                        playing={isPlaying}
+                        volume={localVolume / 100}
+                        muted={localMuted}
+                        onEnded={handleMusicEnded}
+                        onError={(e) => {
+                            console.error("Player Hatası", e);
+                            handleSkip(); // Hata varsa otopass geç
+                        }}
+                        width="100%"
+                        height="100%"
+                        controls={true} // Elfsight widget tarzı kendi UI'sı olsun
+                        config={{
+                            youtube: {
+                                // @ts-ignore - react-player type definitions
+                                playerVars: { showinfo: 0, rel: 0, autoplay: 1 }
+                            }
+                        }}
+                    />
+                </div>
+            )}
+
             {/* Compact Bar */}
             <div className="music-player-bar" onClick={() => setIsExpanded(!isExpanded)}>
                 <div className="music-player-icon">
                     {nowPlaying ? (
-                        <span className="music-icon spinning">🎵</span>
+                        <div className="spinning-disc" style={{
+                            backgroundImage: nowPlaying.thumbnail ? `url(${nowPlaying.thumbnail})` : 'none',
+                            animationPlayState: isPlaying ? 'running' : 'paused'
+                        }}>🎵</div>
                     ) : (
                         <span className="music-icon">🎵</span>
                     )}
@@ -121,25 +173,23 @@ export function MusicPlayer({
                     {nowPlaying ? (
                         <>
                             <span className="music-title">{nowPlaying.title}</span>
-                            <span className="music-requester">• {nowPlaying.requestedBy}</span>
+                            <span className="music-requester" style={{ fontSize: '0.75rem', opacity: 0.8 }}>
+                                • {nowPlaying.requestedBy} | Cihazda Çalıyor
+                            </span>
                         </>
                     ) : (
-                        <span className="music-idle">Müzik Botu</span>
+                        <span className="music-idle">Müzik Botu (Cihaz Oynatıcısı)</span>
                     )}
                 </div>
+
                 <div className="music-controls-mini" onClick={(e) => e.stopPropagation()}>
-                    <button
-                        onClick={() => onBotMutedChange(!botMuted)}
-                        title={botMuted ? 'Sesi Aç' : 'Sustur'}
-                        className={botMuted ? 'muted' : ''}
-                    >
-                        {botMuted ? '🔇' : '🔊'}
-                    </button>
                     {nowPlaying && (
                         <>
-                            <button onClick={handlePause} title="Duraklat/Devam">⏯️</button>
-                            <button onClick={handleSkip} title="Atla">⏭️</button>
-                            <button onClick={handleStop} title="Durdur">⏹️</button>
+                            <button onClick={handlePause} title="Duraklat/Devam" className="neon-btn">
+                                {isServerPaused ? '▶️' : '⏸️'}
+                            </button>
+                            <button onClick={handleSkip} title="Atla" className="neon-btn">⏭️</button>
+                            <button onClick={handleStop} title="Durdur" className="neon-btn danger">⏹️</button>
                         </>
                     )}
                 </div>
@@ -148,54 +198,55 @@ export function MusicPlayer({
             {/* Expanded Panel */}
             {isExpanded && (
                 <div className="music-player-expanded">
-                    {/* Volume Control */}
+                    {/* Local Volume Control (Sadece bu bilgisayarın sesini ayarlar) */}
                     <div className="music-volume-row">
-                        <span className="volume-label">{botMuted ? '🔇' : botVolume > 50 ? '🔊' : '🔉'}</span>
+                        <button
+                            className="volume-label"
+                            onClick={() => setLocalMuted(!localMuted)}
+                            style={{ background: 'transparent', border: 'none', cursor: 'pointer' }}
+                        >
+                            {localMuted ? '🔇' : localVolume > 50 ? '🔊' : '🔉'}
+                        </button>
                         <input
                             type="range"
                             min="0"
                             max="100"
-                            value={botVolume}
-                            onChange={(e) => onBotVolumeChange(parseInt(e.target.value))}
+                            value={localVolume}
+                            onChange={(e) => setLocalVolume(parseInt(e.target.value))}
                             className="music-volume-slider"
-                            title={`Ses: ${botVolume}%`}
+                            title={`Cihaz Sesi: ${localVolume}%`}
                         />
-                        <span className="volume-value">{botVolume}%</span>
+                        <span className="volume-value">{localVolume}%</span>
                     </div>
 
                     {/* URL Input */}
                     <div className="music-input-row">
                         <input
                             type="text"
-                            placeholder="YouTube veya Spotify linki yapıştır..."
+                            placeholder="Şarkı adı, YT veya Spotify linki..."
                             value={urlInput}
                             onChange={(e) => setUrlInput(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handlePlay()}
+                            onKeyDown={(e) => e.key === 'Enter' && handlePlayRequest()}
                             disabled={isLoading}
                         />
-                        <button onClick={handlePlay} disabled={isLoading || !urlInput.trim()}>
+                        <button onClick={handlePlayRequest} disabled={isLoading || !urlInput.trim()} className="neon-btn">
                             {isLoading ? '⏳' : '▶️'}
                         </button>
                     </div>
 
                     {statusMessage && <div className="music-status">{statusMessage}</div>}
 
-                    {nowPlaying && (
-                        <div className="music-now-playing">
-                            <div className="music-np-label">🎧 Şu an çalıyor:</div>
-                            <div className="music-np-title">{nowPlaying.title}</div>
-                            <div className="music-np-by">İsteyen: {nowPlaying.requestedBy}</div>
-                        </div>
-                    )}
-
                     {queue.length > 0 && (
                         <div className="music-queue">
-                            <div className="music-queue-label">📋 Kuyruk ({queue.length})</div>
+                            <div className="music-queue-label">📋 Sırada Bekleyenler ({queue.length})</div>
                             {queue.map((item, i) => (
                                 <div key={i} className="music-queue-item">
                                     <span className="queue-index">{i + 1}.</span>
-                                    <span className="queue-title">{item.title}</span>
-                                    {item.duration && <span className="queue-duration">{item.duration}</span>}
+                                    <div className="queue-details">
+                                        <span className="queue-title">{item.title}</span>
+                                        <span className="queue-duration">{item.duration || 'Bilinmiyor'}</span>
+                                    </div>
+                                    <span className="queue-req">👤 {item.requestedBy}</span>
                                 </div>
                             ))}
                         </div>
