@@ -136,7 +136,7 @@ npm run electron:build
   <h1 id="english-version">🇬🇧 English Version</h1>
 </div>
 
-# Demirkıran Cafe | Voice, Video & Watch Together ☕🎬
+# Demirkıran Cafe
 
 Demirkıran Cafe is a privately hosted, Discord-like communication app designed for gamers and friend groups. It provides low-latency voice chat, screen sharing, and synchronized music/video watching capabilities using a dedicated server architecture.
 
