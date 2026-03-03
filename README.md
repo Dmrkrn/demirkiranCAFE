@@ -1,175 +1,189 @@
-<h1 align="center">
-  <img src="client/build/icon.png" width="48" alt="Icon">
-  DemirkiranCAFE
-</h1>
+<div align="center">
 
-<p align="center">
-  <strong>🎮 Arkadaşlar arası düşük gecikmeli, şifreli sesli ve görüntülü iletişim uygulaması.</strong><br>
-  <em>A low-latency, encrypted voice and video communication app for friends.</em>
-</p>
+# Demirkıran Cafe | Watch Together ☕🎬
 
-<p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.0-blue.svg" alt="Version">
-  <img src="https://img.shields.io/badge/platform-Windows-lightgrey.svg" alt="Platform">
-  <img src="https://img.shields.io/badge/framework-Electron-9cf.svg" alt="Electron">
-  <img src="https://img.shields.io/badge/backend-NestJS-E0234E.svg" alt="NestJS">
-  <img src="https://img.shields.io/badge/webrtc-Mediasoup-333333.svg" alt="Mediasoup">
-</p>
+Demirkıran Cafe, oyuncular ve arkadaş grupları için geliştirilmiş Discord benzeri, **özel sunucu mantığıyla çalışan** iletişim ve "Birlikte İzle" (Watch Party) masaüstü uygulamasıdır.
 
-<p align="center">
-  <a href="#-türkçe"><b>🇹🇷 TÜRKÇE</b></a> •
-  <a href="#-english"><b>🇺🇸 ENGLISH</b></a>
-</p>
+![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
+![Electron.js](https://img.shields.io/badge/Electron-191970?style=for-the-badge&logo=Electron&logoColor=white)
+![TypeScript](https://img.shields.io/badge/typescript-%23007ACC.svg?style=for-the-badge&logo=typescript&logoColor=white)
+![Socket.io](https://img.shields.io/badge/Socket.io-black?style=for-the-badge&logo=socket.io&badgeColor=010101)
+![NestJS](https://img.shields.io/badge/nestjs-%23E0234E.svg?style=for-the-badge&logo=nestjs&logoColor=white)
+![Mediasoup](https://img.shields.io/badge/Mediasoup-SFU-blue?style=for-the-badge&logo=webrtc)
+![Docker](https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white)
+
+[English Version Below](#english-version) 🇺🇸
+
+</div>
 
 ---
 
 <br/>
-
-<h2 id="-türkçe">🇹🇷 Türkçe Dokümantasyon</h2>
-
-DemirkiranCAFE, oyuncular ve arkadaş grupları için geliştirilmiş Discord benzeri, **özel sunucu mantığıyla çalışan** bir iletişim uygulamasıdır. Arka planda **Mediasoup (SFU)** mimarisi kullanarak ağ yormadan 1080p 60FPS'e kadar kamera ve ekran paylaşımı sunar.
-
-### 📸 Arayüz & Özellikler
-
 <div align="center">
-  <img src="screenshots/main.JPG" width="80%" alt="Ana Sohbet - Main Chat">
-  <p><i>Karanlık tema, modern arayüz ve kullanıcı dostu ses kontrolleri.</i></p>
+  <img src="screenshots/main.JPG" alt="Ana Uygulama Görünümü" width="800" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);"/>
+</div>
+<br/>
+
+## 🎯 Özellikler (Features)
+
+*   **🎬 Senkronize Müzik & Video Botu:** 
+    * YouTube videolarını ve müziklerini odadaki herkesle *aynı anda, senkronize* dinleyin.
+    * Herkesin eklenti yapabildiği global bir kuyruk sistemi.
+    * Bireysel ses kontrol sistemi ile Müzik Botu sesini kısıp açabilirsiniz.
+*   **🎮 Ekran Paylaşımı (Ekran & Pencere):**
+    * 1080p 60FPS'e kadar donanım hızlandırmalı sistem veya uygulama sesleriyle birlikte ekran paylaşımı.
+    * Ekran paylaşımlarında "Tam Ekran Yap" özelliği.
+*   **🎙️ Sesli Sohbet (Voice Chat) & Mediasoup SFU:**
+    * Düşük gecikmeli, minimum bant genişliği tüketen **Mediasoup SFU** altyapısıyla Discord kalitesinde sesli görüşme.
+    * Konuşan kullanıcıyı vurgulama (Yeşil Çerçeve).
+*   **🎛️ Bireysel Ses Kontrolleri:** 
+    * Discord'da olduğu gibi odadaki her kullanıcının sesini diğerlerinden bağımsız şekilde ayrı ayrı kısıp açabilirsiniz.
+*   **⌨️ Global Kısayol Tuşları (Hotkeys):**
+    * uIOhook altyapısıyla oyun oynarken arkaplanda çalışsa bile mikrofonu `M`, hoparlörü `D` tuşu ile kapatıp açabilirsiniz (Kısayollar Türkçe Q klayveyi destekler ve değiştirilebilir).
+*   **💬 Gerçek Zamanlı Sohbet:**
+    * Modern Web soketleriyle anında mesajlaşma.
+
+---
+
+## 🛠️ Mimari (Architecture)
+
+Uygulama arka planda gerçek zamanlı iletişim için yüksek performanslı bir SFU (Selective Forwarding Unit) mimarisi kullanır. Geleneksel P2P yönteminden farklı olarak medya (ses/görüntü) sunucuya **sadece 1 kez iletilir** ve sunucu bunu diğer katılımcılara dağıtır.
+
+```mermaid
+graph LR
+    %% Stil Tanımlamaları
+    classDef client fill:#2d3748,stroke:#4a5568,stroke-width:2px,color:#fff
+    classDef backend fill:#1a365d,stroke:#2b6cb0,stroke-width:2px,color:#fff
+    classDef mediasoup fill:#22543d,stroke:#38a169,stroke-width:2px,color:#fff
+    classDef db fill:#5f370e,stroke:#d69e2e,stroke-width:2px,color:#fff
+
+    subgraph "Demirkıran Cafe Client (Electron/React)"
+        direction TB
+        UI("🖥️ UI & Oynatıcı<br/>(Video & Müzik Bot)"):::client
+        Media("🎙️ Kamera/Mikrofon<br/>(Cihaz Yönetimi)"):::client
+    end
+
+    subgraph "NestJS Backend (Docker)"
+        direction TB
+        Socket("⚡ Socket.IO Gateway<br/>(Oda & Senkronizasyon)"):::backend
+        SFU("🌐 Mediasoup SFU<br/>(WebRTC Ses/Ekran Yönlendirme)"):::mediasoup
+    end
+
+    UI <--"Oda Durumu & Chat"--> Socket
+    Media <--"Media Streams (RTP)"--> SFU
+    Socket <--"Signaling"--> SFU
+```
+
+---
+
+## 📸 Ekran Görüntüleri (Screenshots)
+
+### Ekran Paylaşımı & Sohbet
+<div align="center">
+  <img src="screenshots/screen.JPG" alt="Screen Sharing" width="800" style="border-radius: 10px;"/>
 </div>
 
-<br/>
-
+### Müzik Botu
 <div align="center">
-  <img src="screenshots/screen.JPG" width="45%" alt="Ekran Paylaşımı">
-  <img src="screenshots/music.JPG" width="45%" alt="Müzik Botu">
-  <p><i>1080p 60FPS Ekran Paylaşımı ve YouTube Destekli Senkron Müzik Botu</i></p>
+  <img src="screenshots/music.JPG" alt="Music Bot Panel" width="800" style="border-radius: 10px;"/>
+  <br/><br/>
+  <img src="screenshots/music1.JPG" alt="Music Bot Player" width="800" style="border-radius: 10px;"/>
 </div>
 
-<br/>
-
+### Gelişmiş Ayarlar & Hotkey Atama
 <div align="center">
-  <img src="screenshots/settings1.JPG" width="45%" alt="Ayarlar Cihazlar">
-  <img src="screenshots/settings2.JPG" width="45%" alt="Ayarlar Kısayollar">
-  <p><i>Gelişmiş Cihaz Yönetimi ve Özelleştirilebilir Kısayol Tuşları (Global uIOhook)</i></p>
+  <img src="screenshots/settings1.JPG" alt="Audio Settings" width="800" style="border-radius: 10px;"/>
+  <br/><br/>
+  <img src="screenshots/settings2.JPG" alt="Hotkey Settings" width="800" style="border-radius: 10px;"/>
 </div>
 
-<br/>
+---
 
-### ✨ Gelişmiş Özellikler
+## 🚀 Kurulum (Kurumsal / Geliştirici)
 
-- 🎤 **Düşük Gecikmeli Ses & Video:** Mediasoup SFU mimarisi sayesinde sunucu medya akışlarını çözüp tekrar işlemez, doğrudan yönlendirir. Tüketim minimumdadır.
-- 🎵 **Senkron Müzik Botu:** YouTube videolarını ve müziklerini odadaki herkesle *aynı anda, senkronize* dinleyin. Ses seviyesi lokal ayarlanabilir.
-- 🖥️ **Donanım Hızlandırmalı Ekran Paylaşımı:** WebRTC üzerinden akıcı oyun ve ekran paylaşımı.
-- 🎛️ **Bireysel Ses Kontrolleri:** Discord'da olduğu gibi odadaki her kullanıcının sesini ayrı ayrı kısıp açabilirsiniz.
-- ⌨️ **Global Kısayol Tuşları (Hotkeys):** Oyun oynarken arkada çalışsa bile (uIOhook) mikrofonu `M`, hoparlörü `D` tuşu ile kapatıp açabilirsiniz (Özelleştirilebilir).
-- 🔄 **Otomatik Güncelleme:** Electron-Updater ile yeni sürümler yayımlandığında arka planda otomatik güncellenir.
+### 1. Backend (Sunucu) Kurulumu (Docker ile Önerilir)
 
-<br/>
+En hızlı kurulum için Docker kullanın. Backend tarafı NestJS ve C++ Mediasoup Core Worker'larını içerir. 
 
-### 🛠 Teknolojiler & Mimari
-
-Uygulama **Client-Server** yapısında çalışır.
-
-| Kategori | Teknoloji | Açıklama |
-| :--- | :--- | :--- |
-| **Frontend** | React 19 + Vite | Gelişmiş state yönetimi (Zustand) ve modern UI. |
-| **Desktop App** | Electron | Çapraz platform masaüstü çerçevesi. |
-| **Backend** | NestJS | Güvenilir ve modüler arka uç mimarisi. |
-| **Realtime Media** | **Mediasoup (SFU)** | WebRTC Selective Forwarding Unit. Medya trafiğini yönetir. |
-| **Signaling** | Socket.IO | Oda katılımı, müzik botu senkronu ve WebRTC sinyalleşmesi. |
-| **Global Hooks** | uIOhook-Napi | Oyun oynarken bile arka planda global klavye dinleme. |
-
-#### 🏗️ SFU (Selective Forwarding Unit) Mimarisi 
-Geleneksel P2P (Peer-to-Peer) yapısında 10 kişilik bir odada herkes birbirine görüntü gönderir (Ağ kartı çöker). SFU mimarisi (Mediasoup) ile herkes görüntüsünü **sadece 1 kez sunucuya gönderir**, sunucu bu görüntüyü diğer 9 kişiye yönlendirir. İstemci yorulmaz.
-
-<br/>
-
-### 🚀 Kurulum
-
-#### 🎮 Kullanıcılar İçin (Oynamaya Hazır)
-1. **[Releases](https://github.com/Dmrkrn/demirkiranCAFE/releases)** sayfasından en güncel `DemirkiranCAFE Setup X.X.X.exe` sürümünü indirin.
-2. Kurulumu tamamlayın, yönetici onayı verin (Global klavye kısayolları için gereklidir).
-3. Kullanıcı adınızı ve ODA Şifrenizi girip sohbete katılın.
-
-#### 👨‍💻 Geliştiriciler İçin (Derleme)
-Bütün projeyi kendi sunucunuza (Örn: DigitalOcean VPS) kurmak ve düzenlemek için:
-
-**1. Sunucu (Backend) Kurulumu**
+Sunucunuzda **Mediasoup için UDP/TCP portlarının (50000-50200)** güvenlik duvarından açık olduğundan emin olun.
 ```bash
-git clone https://github.com/Dmrkrn/demirkiranCAFE.git
-cd demirkiranCAFE/backend
+cd backend
 npm install
-# .env ayarlarını kendi IP'nize göre yapın
 npm run start:dev
 # veya Docker ile: docker-compose up -d --build
 ```
 
-**2. Masaüstü İstemci (Client) Kurulumu**
-```bash
-cd demirkiranCAFE/client
-npm install
-npm run electron:dev # Geliştirici modunda çalıştır
+### 2. Client (İstemci) Kurulumu
 
-# .exe Çıktısı Almak İçin:
+```bash
+cd client
+npm install
+
+# Geliştirici Modunda çalıştırmak için iki terminal kullanın:
+npm run dev # Terminal 1 (Vite)
+npm run start # Terminal 2 (Electron)
+
+# Uygulamayı Paketlemek (Production Build .exe) ve Dağıtmak için:
 npm run electron:build
 ```
 
 ---
-<br/><br/>
-
-<h2 id="-english">🇺🇸 English Documentation</h2>
-
-DemirkiranCAFE is a privately hosted, Discord-like communication app designed for gamers and friend groups. Utilizing **Mediasoup (SFU)** architecture, it provides up to 1080p 60FPS camera and screen sharing with minimal network overhead.
-
-### ✨ Key Features
-
-- 🎤 **Low-Latency Voice & Video:** Powered by Mediasoup SFU. The server routes media streams directly without CPU-heavy transcoding.
-- 🎵 **Synchronized Music Bot:** Listen to YouTube music and videos perfectly synced with everyone in the room. Local volume control is supported.
-- 🖥️ **Hardware-Accelerated Screen Share:** Fluid game and desktop sharing over WebRTC.
-- 🎛️ **Per-User Volume Controls:** Adjust the specific volume of any individual user in the room, just like Discord.
-- ⌨️ **Global Hotkeys:** Toggle your Mic (`M`) or Deafen (`D`) even while alt-tabbed or in-game, powered by low-level `uIOhook` (Fully customizable in Settings).
-- 🔄 **Auto-Updates:** Seamless background updates via Electron-Updater when a new release is published.
-
-### 🛠 Tech Stack & Architecture
-
-| Category | Technology | Description |
-| :--- | :--- | :--- |
-| **Frontend** | React 19 + Vite | State management (Zustand) & modern UI. |
-| **Desktop App** | Electron | Cross-platform desktop framework. |
-| **Backend** | NestJS | Scalable Node.js server framework. |
-| **Media Server**| **Mediasoup (SFU)** | WebRTC Selective Forwarding Unit for routing tracks. |
-| **Signaling** | Socket.IO | Room joins, synchronized music bot states, WebRTC signaling. |
-| **Global Hooks** | uIOhook-Napi | OS-level keyboard listeners for background hotkeys. |
-
-#### 🏗️ Why SFU (Selective Forwarding Unit)?
-In standard P2P, in a 10-person room, you upload your video 9 times (crushing your bandwidth). With Mediasoup SFU, you upload your video **exactly once** to the server, and the server distributes it to the other 9 people. Your bandwidth usage stays minimal.
-
+<br/>
 <br/>
 
-### 🚀 Installation
+<div align="center">
+  <h1 id="english-version">🇬🇧 English Version</h1>
+</div>
 
-#### 🎮 For Users
-1. Download the latest `DemirkiranCAFE Setup X.X.X.exe` from the **[Releases](https://github.com/Dmrkrn/demirkiranCAFE/releases)** page.
-2. Install the app (Administrator privileges may be requested by Windows for Global Hotkeys to function inside games).
-3. Enter your Username and the Room Password to join!
+# Demirkıran Cafe | Voice, Video & Watch Together ☕🎬
 
-#### 👨‍💻 For Developers (Build from Source)
+Demirkıran Cafe is a privately hosted, Discord-like communication app designed for gamers and friend groups. It provides low-latency voice chat, screen sharing, and synchronized music/video watching capabilities using a dedicated server architecture.
 
-**1. Backend Setup**
+## 🎯 Features
+
+*   **🎬 Synchronized Music Bot:** 
+    * Add YouTube videos and music links to a global queue and listen to them in perfect sync with everyone in the room.
+    * Features local volume control specifically for the bot.
+*   **🎮 Hardware-Accelerated Screen Share:**
+    * Liquid smooth game and desktop sharing over WebRTC with full system audio forwarding.
+*   **🎙️ Low-Latency Voice Chat (Mediasoup SFU):**
+    * Powered by an optimized Mediasoup Selective Forwarding Unit infrastructure. Instead of crashing bandwidth via Peer-to-Peer, users upload their stream once, and the server distributes it instantly.
+    * Audio-reactive speaker indicators (Green borders).
+*   **🎛️ Per-User Volume Controls:** 
+    * Lower or raise the specific volume of any individual participant in the room independently.
+*   **⌨️ Global Hotkeys:**
+    * Keep working or playing your games in peace. Thanks to low-level `uIOhook` bindings, you can toggle your microphone (`M`) or deafen yourself (`D`) globally from anywhere in the OS.
+*   **💬 Real-Time Chat:**
+    * Instant messaging alongside the video feeds.
+
+## 🛠️ Architecture
+
+*(See the Mermaid diagram in the Turkish section above for visualization)*
+
+The application uses an **SFU (Selective Forwarding Unit)** architecture for real-time media routing. WebRTC (Mediasoup) handles the media payload directly in the C++ layer, while WebSocket (Socket.IO/NestJS) manages the signaling states and synchronized events.
+
+## 📸 Screenshots
+
+- See **[Screenshots Section](#-ekran-görüntüleri-screenshots)** above for UI comparisons featuring voice channels, settings panels, music bot configurations, and dynamic themes.
+
+## 🚀 Installation
+
+### 1. Backend (Server Setup)
+**Critical note for DevOps:** Mediasoup requires UDP port ranges to be accessible through your firewall (default `50000-50200`).
 ```bash
-git clone https://github.com/Dmrkrn/demirkiranCAFE.git
-cd demirkiranCAFE/backend
+cd backend
 npm install
-# Configure your .env config with your public IP
 npm run start:dev
+# Or using Docker: docker-compose up -d --build
 ```
 
-**2. Client Setup**
+### 2. Client (Desktop Setup)
 ```bash
-cd demirkiranCAFE/client
+cd client
 npm install
-npm run electron:dev # Run in development mode
+npm run electron:dev # Runs the dev environment
 
-# To Compile to .exe:
+# To compile to a distributable .exe:
 npm run electron:build
 ```
 
