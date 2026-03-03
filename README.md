@@ -20,7 +20,8 @@ Demirkıran Cafe, oyuncular ve arkadaş grupları için geliştirilmiş Discord 
 
 <br/>
 <div align="center">
-  <img src="screenshots/main.JPG" alt="Ana Uygulama Görünümü" width="800" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);"/>
+  <img src="screenshots/login.JPG" alt="Login Screen" width="380" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.5);"/>
+  <img src="screenshots/main.JPG" alt="Ana Uygulama Görünümü" width="600" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); margin-left:10px;"/>
 </div>
 <br/>
 
