@@ -1,8 +1,8 @@
 <div align="center">
 
-# Demirkıran Cafe | Watch Together ☕🎬
+# Demirkıran Cafe
 
-Demirkıran Cafe, oyuncular ve arkadaş grupları için geliştirilmiş Discord benzeri, **özel sunucu mantığıyla çalışan** iletişim ve "Birlikte İzle" (Watch Party) masaüstü uygulamasıdır.
+Demirkıran Cafe, oyuncular ve arkadaş grupları için geliştirilmiş Discord benzeri, **özel sunucu mantığıyla çalışan** iletişim için kullanılan bir masaüstü uygulamasıdır.
 
 ![React](https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB)
 ![Electron.js](https://img.shields.io/badge/Electron-191970?style=for-the-badge&logo=Electron&logoColor=white)
