@@ -16,6 +16,9 @@ app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 
+// YouTube iframe autoplay için kritik: Kullanıcı etkileşimi olmadan ses çalmaya izin ver
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 // WGC (Windows Graphics Capture) yerine eski DXGI/GDI capture zorla (Donma sorununu çözmek için)
 app.commandLine.appendSwitch('disable-features', 'WebRtcAllowWgcWindowCapturer');
 
@@ -49,6 +52,7 @@ function createWindow() {
             contextIsolation: true,           // Güvenlik: Renderer'ı izole ediyoruz
             preload: path.join(__dirname, 'preload.js'), // Köprü script
             backgroundThrottling: false,      // Ses işleme için throttling'i kapat
+            autoplayPolicy: 'no-user-gesture-required', // YouTube iframe ses otomatik oynatma
         },
     });
 

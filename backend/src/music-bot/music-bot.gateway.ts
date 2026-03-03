@@ -73,6 +73,15 @@ export class MusicBotGateway implements OnModuleInit {
         return { message: this.musicBotService.pause() };
     }
 
+    @SubscribeMessage('music-remove')
+    handleRemove(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { index: number },
+    ) {
+        const username = (client as any).username || 'Anonim';
+        return this.musicBotService.removeFromQueue(data.index, username);
+    }
+
     @SubscribeMessage('music-queue')
     handleQueue(@ConnectedSocket() client: Socket) {
         return this.musicBotService.getQueue();

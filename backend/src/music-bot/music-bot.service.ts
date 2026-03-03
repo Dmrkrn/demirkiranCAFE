@@ -21,6 +21,8 @@ export class MusicBotService {
     private nowPlaying: NowPlaying | null = null;
     private isPaused = false;
     private isTransitioning = false;
+    private pausedAt: number | null = null;        // Duraklatma anının timestamp'i
+    private totalPausedDuration = 0;               // Toplam duraklatılmış süre (ms)
 
     // Callbacks for Gateway
     private onNowPlayingChange?: (data: { nowPlaying: NowPlaying | null }) => void;
@@ -44,9 +46,20 @@ export class MusicBotService {
      */
     private async getVideoInfo(url: string): Promise<{ title: string; duration?: string; thumbnail?: string; exactUrl: string }> {
         try {
-            // "Wegh Geri Ver" gibi düz metin de gelse, veya YouTube linki de olsa 
-            // ytSearch, arka planda youtube HTML sayfasını çok hızlı okuyup bize sonucu veriyor.
-            const result = await ytSearch(url);
+            let searchQuery = url;
+
+            // yt-search kütüphanesine doğrudan uzun bir URL vermek bazen aramayı bozabiliyor (özellikle &list= içeren kısımlar).
+            // Eğer gelen istek zaten bir YouTube URL'si ise, sadece Video ID'sini veya düz linki aratalım.
+            if (url.includes('youtube.com/watch') || url.includes('youtu.be/')) {
+                const urlObj = new URL(url);
+                const videoId = urlObj.searchParams.get('v') || urlObj.pathname.replace('/', '');
+                if (videoId) {
+                    searchQuery = videoId;
+                }
+            }
+
+            // Arama işlemini gerçekleştir (Video ID veya düz metin)
+            const result = await ytSearch(searchQuery);
 
             if (result && result.videos.length > 0) {
                 const bestMatch = result.videos[0];
@@ -113,6 +126,8 @@ export class MusicBotService {
                 startedAt: Date.now(),
             };
             this.isPaused = false;
+            this.pausedAt = null;
+            this.totalPausedDuration = 0; // Yeni şarkı, sıfırdan başla
 
             this.logger.log(`🎵 Şimdi çalıyor: ${this.nowPlaying.title}`);
             this.onQueueChange?.({ queue: this.getQueue().queue });
@@ -149,10 +164,31 @@ export class MusicBotService {
         this.nowPlaying = null;
         this.queue = [];
         this.isPaused = false;
+        this.pausedAt = null;
+        this.totalPausedDuration = 0;
 
         this.onNowPlayingChange?.({ nowPlaying: null });
         this.onQueueChange?.({ queue: [] });
         return `⏹️ Durduruldu: **${stopped}** (Kuyruk temizlendi)`;
+    }
+
+    /**
+     * Remove a specific song from the queue by index
+     */
+    removeFromQueue(index: number, requestedBy?: string): { success: boolean; message: string } {
+        if (index < 0 || index >= this.queue.length) {
+            return { success: false, message: '❌ Geçersiz kuyruk numarası.' };
+        }
+
+        const removed = this.queue.splice(index, 1)[0];
+
+        // Broadcast the updated queue to all clients
+        this.onQueueChange?.({ queue: this.getQueue().queue });
+
+        const userStr = requestedBy ? ` (${requestedBy})` : '';
+        this.logger.log(`🎵 Kuyruktan çıkarıldı: ${removed.title}${userStr}`);
+
+        return { success: true, message: `🗑️ Kuyruktan çıkarıldı: **${removed.title}**` };
     }
 
     /**
@@ -162,18 +198,31 @@ export class MusicBotService {
         if (!this.nowPlaying) return '❌ Çalan bir şarkı yok!';
 
         this.isPaused = !this.isPaused;
-        // Broadcast the play/pause state change to clients
-        // Re-emitting the same track forces clients to evaluate the local paused state
-        this.onNowPlayingChange?.({ nowPlaying: this.nowPlaying });
 
+        if (this.isPaused) {
+            // Duraklatma anını kaydet
+            this.pausedAt = Date.now();
+        } else {
+            // Devam ederken duraklatılmış süreyi toplama ekle
+            if (this.pausedAt) {
+                this.totalPausedDuration += Date.now() - this.pausedAt;
+                this.pausedAt = null;
+            }
+        }
+
+        this.onNowPlayingChange?.({ nowPlaying: this.nowPlaying });
         return this.isPaused ? `⏸️ Duraklatıldı: **${this.nowPlaying.title}**` : `▶️ Devam: **${this.nowPlaying.title}**`;
     }
 
-    getQueue(): { nowPlaying: NowPlaying | null; queue: QueueItem[]; isPaused: boolean } {
+    getQueue(): { nowPlaying: NowPlaying | null; queue: QueueItem[]; isPaused: boolean; totalPausedDuration: number } {
+        // Şu an duraklatılmışsa, şimdiye kadarki duraklatma süresini de hesaba kat
+        const currentPausedDuration = this.totalPausedDuration +
+            (this.isPaused && this.pausedAt ? Date.now() - this.pausedAt : 0);
         return {
             nowPlaying: this.nowPlaying,
             queue: [...this.queue],
-            isPaused: this.isPaused
+            isPaused: this.isPaused,
+            totalPausedDuration: currentPausedDuration,
         };
     }
 

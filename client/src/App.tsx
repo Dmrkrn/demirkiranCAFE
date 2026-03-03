@@ -86,15 +86,6 @@ function App() {
     // Context Menu State (Sağ Tık Menüsü)
     const [contextMenu, setContextMenu] = useState<{ x: number, y: number, peerId: string } | null>(null);
 
-    // Müzik botu - kişiye özel ses ayarları
-    const [botVolume, setBotVolume] = useState(() => {
-        const saved = localStorage.getItem('musicBotVolume');
-        return saved ? parseInt(saved) : 50;
-    });
-    const [botMuted, setBotMuted] = useState(() => {
-        return localStorage.getItem('musicBotMuted') === 'true';
-    });
-
     // Menü dışına tıklanınca kapat
     useEffect(() => {
         const handleClick = () => setContextMenu(null);
@@ -941,16 +932,16 @@ function App() {
                                 >
                                     🎬 Seyir
                                 </button>
+                                {/* Müzik Botu (Sidebar buton + sürüklenebilir panel) */}
+                                {isJoined && (
+                                    <MusicPlayer
+                                        socket={socket}
+                                        request={request}
+                                        isDeafened={isDeafened}
+                                    />
+                                )}
                             </div>
                         </div>
-
-                        {/* Müzik Botu (Frontend Embedded Architecture) */}
-                        {isJoined && (
-                            <MusicPlayer
-                                socket={socket}
-                                request={request}
-                            />
-                        )}
 
                         <div className="users-section">
                             <h3>Kullanıcılar</h3>
@@ -1678,16 +1669,6 @@ function App() {
                                         stream={consumer.stream}
                                         muted={isDeafened || isSharing}
                                         volume={userVolumes[consumer.peerId] ?? 100}
-                                        speakerId={activeSpeakerId}
-                                    />
-                                ))}
-                                {/* Müzik botu sesi (kişiye özel volume/mute) */}
-                                {consumers.filter(c => c.kind === 'audio' && c.appData?.isBot).map(consumer => (
-                                    <AudioPlayer
-                                        key={consumer.id}
-                                        stream={consumer.stream}
-                                        muted={botMuted || isDeafened}
-                                        volume={botVolume}
                                         speakerId={activeSpeakerId}
                                     />
                                 ))}
