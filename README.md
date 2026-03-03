@@ -80,21 +80,21 @@ graph LR
 
 ### Ekran Paylaşımı & Sohbet
 <div align="center">
-  <img src="screenshots/screen.JPG" alt="Screen Sharing" width="800" style="border-radius: 10px;"/>
+  <img src="screenshots/screen.JPG" alt="Screen Sharing" width="400" style="border-radius: 10px;"/>
 </div>
 
 ### Müzik Botu
 <div align="center">
-  <img src="screenshots/music.JPG" alt="Music Bot Panel" width="800" style="border-radius: 10px;"/>
+  <img src="screenshots/music.JPG" alt="Music Bot Panel" width="400" style="border-radius: 10px;"/>
   <br/><br/>
-  <img src="screenshots/music1.JPG" alt="Music Bot Player" width="800" style="border-radius: 10px;"/>
+  <img src="screenshots/music1.JPG" alt="Music Bot Player" width="400" style="border-radius: 10px;"/>
 </div>
 
 ### Gelişmiş Ayarlar & Hotkey Atama
 <div align="center">
-  <img src="screenshots/settings1.JPG" alt="Audio Settings" width="800" style="border-radius: 10px;"/>
+  <img src="screenshots/settings1.JPG" alt="Audio Settings" width="400" style="border-radius: 10px;"/>
   <br/><br/>
-  <img src="screenshots/settings2.JPG" alt="Hotkey Settings" width="800" style="border-radius: 10px;"/>
+  <img src="screenshots/settings2.JPG" alt="Hotkey Settings" width="400" style="border-radius: 10px;"/>
 </div>
 
 ---
