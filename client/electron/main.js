@@ -1,5 +1,7 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
+const http = require('http');
+const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 const log = require('electron-log');
 
@@ -53,18 +55,70 @@ function createWindow() {
             preload: path.join(__dirname, 'preload.js'), // Köprü script
             backgroundThrottling: false,      // Ses işleme için throttling'i kapat
             autoplayPolicy: 'no-user-gesture-required', // YouTube iframe ses otomatik oynatma
+            webSecurity: false,               // YouTube iframe audio: file:// -> https:// arası izin ver
         },
     });
 
     // Menü çubuğunu tamamen kaldır (Windows/Linux için)
     mainWindow.setMenuBarVisibility(false);
 
+
     // Development'ta Vite dev server'dan yükle
     if (isDev) {
         mainWindow.loadURL('http://localhost:5173');
     } else {
-        // Production'da build edilmiş dosyaları yükle
-        mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
+        // Production'da file:// yerine local HTTP server üzerinden servis et
+        // Neden: YouTube iframe, file:// origin'den yüklenince ses çalmayı reddediyor.
+        // HTTP üzerinden servis edince origin http://127.0.0.1:PORT olur ve YouTube normal çalışır.
+        const distPath = path.join(__dirname, '../dist');
+
+        const mimeTypes = {
+            '.html': 'text/html',
+            '.js': 'application/javascript',
+            '.css': 'text/css',
+            '.png': 'image/png',
+            '.jpg': 'image/jpeg',
+            '.svg': 'image/svg+xml',
+            '.ico': 'image/x-icon',
+            '.json': 'application/json',
+            '.woff': 'font/woff',
+            '.woff2': 'font/woff2',
+            '.ttf': 'font/ttf',
+            '.map': 'application/json',
+        };
+
+        const server = http.createServer((req, res) => {
+            let urlPath = req.url.split('?')[0]; // Query string'i temizle
+            if (urlPath === '/') urlPath = '/index.html';
+
+            const filePath = path.join(distPath, urlPath);
+            const ext = path.extname(filePath).toLowerCase();
+            const contentType = mimeTypes[ext] || 'application/octet-stream';
+
+            fs.readFile(filePath, (err, data) => {
+                if (err) {
+                    // SPA fallback: Dosya bulunamazsa index.html dön
+                    fs.readFile(path.join(distPath, 'index.html'), (err2, data2) => {
+                        if (err2) {
+                            res.writeHead(404);
+                            res.end('Not Found');
+                        } else {
+                            res.writeHead(200, { 'Content-Type': 'text/html' });
+                            res.end(data2);
+                        }
+                    });
+                } else {
+                    res.writeHead(200, { 'Content-Type': contentType });
+                    res.end(data);
+                }
+            });
+        });
+
+        server.listen(0, '127.0.0.1', () => {
+            const port = server.address().port;
+            log.info(`🌐 Production HTTP server başlatıldı: http://127.0.0.1:${port}`);
+            mainWindow.loadURL(`http://127.0.0.1:${port}`);
+        });
     }
 
     // Pencere kapandığında

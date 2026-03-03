@@ -19,6 +19,8 @@ interface MediaDeviceInfo {
 export interface Keybinds {
     toggleMic: string;
     toggleSpeaker: string;
+    toggleMicLabel?: string;
+    toggleSpeakerLabel?: string;
 }
 
 // localStorage'dan keybind'leri yükle
@@ -94,7 +96,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
     const [keybinds, setKeybinds] = useState<Keybinds>(loadKeybinds);
     const [recordingKey, setRecordingKey] = useState<'toggleMic' | 'toggleSpeaker' | null>(null);
 
+    // App Version state
+    const [appVersion, setAppVersion] = useState<string>('Bilinmiyor');
 
+    useEffect(() => {
+        if (window.electronAPI && window.electronAPI.getAppVersion) {
+            window.electronAPI.getAppVersion().then((ver: string) => setAppVersion(ver));
+        }
+    }, []);
 
     // Keybind kaydetme
     const handleKeyDown = useCallback((e: KeyboardEvent) => {
@@ -103,7 +112,16 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
         e.preventDefault();
         e.stopPropagation();
 
-        const newKeybinds = { ...keybinds, [recordingKey]: e.code };
+        // e.key: Aktif klavye düzenine göre gerçek karakter (Türkçe Q'da Ş, Ğ vs.)
+        // e.code: Fiziksel tuş kodu (uIOhook eşleştirmesi için)
+        const label = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+        const labelKey = `${recordingKey}Label` as keyof Keybinds;
+
+        const newKeybinds = {
+            ...keybinds,
+            [recordingKey]: e.code,
+            [labelKey]: label
+        };
         setKeybinds(newKeybinds);
         saveKeybinds(newKeybinds);
         setRecordingKey(null);
@@ -471,7 +489,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
                             >
                                 {recordingKey === 'toggleMic'
                                     ? 'Bir tuşa bas...'
-                                    : formatKeyCode(keybinds.toggleMic)}
+                                    : keybinds.toggleMicLabel || formatKeyCode(keybinds.toggleMic)}
                             </button>
                         </div>
 
@@ -483,7 +501,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
                             >
                                 {recordingKey === 'toggleSpeaker'
                                     ? 'Bir tuşa bas...'
-                                    : formatKeyCode(keybinds.toggleSpeaker)}
+                                    : keybinds.toggleSpeakerLabel || formatKeyCode(keybinds.toggleSpeaker)}
                             </button>
                         </div>
                     </div>
@@ -491,7 +509,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
 
 
                     <div className="settings-footer-info" style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.8rem', opacity: 0.5 }}>
-                        DemirkıranCAFE v1.0.6 • <span
+                        DemirkıranCAFE v{appVersion} • <span
                             onClick={() => window.electronAPI?.openExternal('https://cagridemirkiran.com')}
                             style={{ cursor: 'pointer', textDecoration: 'underline' }}
                         >

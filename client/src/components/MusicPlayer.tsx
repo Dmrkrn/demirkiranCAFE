@@ -103,6 +103,7 @@ export function MusicPlayer({
         document.head.appendChild(tag);
     }, []);
 
+    // YouTube Player oluştur / güncelle
     useEffect(() => {
         if (!nowPlaying) {
             if (ytPlayerRef.current) {
@@ -125,13 +126,23 @@ export function MusicPlayer({
                 height: '140',
                 width: '100%',
                 videoId: videoId,
+                host: 'https://www.youtube-nocookie.com', // Embed kısıtlamalarını atlamak için nocookie domain
                 playerVars: {
                     autoplay: 1, controls: 1, modestbranding: 1,
                     rel: 0, playsinline: 1, enablejsapi: 1,
-                    origin: window.location.origin,
+                    origin: 'https://www.youtube-nocookie.com',
                 },
                 events: {
                     onReady: (event: any) => {
+                        // Electron production fix: YT.Player tarafından oluşturulan iframe'e
+                        // gerekli 'allow' özelliklerini enjekte et
+                        try {
+                            const iframe = document.querySelector('#yt-music-player iframe, iframe#yt-music-player') as HTMLIFrameElement;
+                            if (iframe) {
+                                iframe.setAttribute('allow', 'accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share');
+                            }
+                        } catch { }
+
                         event.target.setVolume(localVolume);
                         if (localMuted || isDeafened) { event.target.mute(); } else { event.target.unMute(); }
                         event.target.playVideo();
@@ -152,7 +163,20 @@ export function MusicPlayer({
                         }
                     },
                     onError: (event: any) => {
-                        console.error('YouTube Player Error:', event.data);
+                        const errorCode = event.data;
+                        console.error('YouTube Player Error:', errorCode);
+
+                        // Kullanıcıya neden atlandığını göster
+                        const errorMessages: Record<number, string> = {
+                            2: '❌ Geçersiz video ID\'si',
+                            5: '❌ HTML5 oynatıcı hatası',
+                            100: '❌ Bu video bulunamadı veya kaldırılmış',
+                            101: '⚠️ Bu şarkı telif kısıtlaması nedeniyle çalınamıyor, atlanıyor...',
+                            150: '⚠️ Bu şarkı telif kısıtlaması nedeniyle çalınamıyor, atlanıyor...',
+                        };
+                        setStatusMessage(errorMessages[errorCode] || `❌ YouTube Hatası: ${errorCode}`);
+                        setTimeout(() => setStatusMessage(''), 5000);
+
                         handleSkip();
                     },
                 },
@@ -166,6 +190,7 @@ export function MusicPlayer({
         }
     }, [nowPlaying?.url]);
 
+    // Ses seviyesi ve mute kontrolü
     useEffect(() => {
         if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
             ytPlayerRef.current.setVolume(localVolume);
@@ -288,7 +313,7 @@ export function MusicPlayer({
 
             {/* YouTube Player - HER ZAMAN DOM'da, asla unmount edilmez */}
             <div style={{ position: 'fixed', top: '-9999px', left: '-9999px', width: '1px', height: '1px', overflow: 'hidden', pointerEvents: 'none' }}>
-                <div id="yt-music-player" />
+                <div id="yt-music-player"></div>
             </div>
 
             {/* Sürüklenebilir Panel */}

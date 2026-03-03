@@ -1100,7 +1100,6 @@ function App() {
                                             value={username}
                                             onChange={(e) => setUsername(e.target.value)}
                                             className="username-input"
-                                            disabled={joiningStatus === 'connecting'}
                                         />
 
                                         <input
@@ -1113,7 +1112,6 @@ function App() {
                                             }}
                                             onKeyDown={(e) => e.key === 'Enter' && handleJoinRoom()}
                                             className={`username-input password-input ${loginError ? 'input-error' : ''}`}
-                                            disabled={joiningStatus === 'connecting'}
                                         />
 
                                         {loginError && (
@@ -1137,10 +1135,9 @@ function App() {
                                         <button
                                             onClick={() => handleJoinRoom()}
                                             className="connect-button"
-                                            disabled={joiningStatus === 'connecting' || !isConnected}
+                                            disabled={!isConnected}
                                         >
-                                            {joiningStatus === 'connecting' ? 'Bağlanıyor...' :
-                                                !isConnected ? 'Sunucu Bekleniyor...' : 'Odaya Katıl'}
+                                            {!isConnected ? 'Sunucu Bekleniyor...' : 'Odaya Katıl'}
                                         </button>
 
                                         {!isConnected && (
