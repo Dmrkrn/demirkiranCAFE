@@ -83,7 +83,8 @@ export function useVoiceActivity({
                 setVolume(normalizedVolume);
 
                 const now = Date.now();
-                if (average > threshold) {
+                // Eşik karşılaştırmasını normalize edilmiş birimle (0-100) yap ki UI ayarıyla tam eşleşsin
+                if (normalizedVolume > threshold) {
                     setIsSpeaking(true);
                     lastSpeechTime = now;
                 } else {
@@ -119,7 +120,10 @@ export function useVoiceActivity({
         }
 
         if (audioContextRef.current) {
-            audioContextRef.current.close();
+            const ctx = audioContextRef.current;
+            if (ctx.state !== 'closed') {
+                ctx.close().catch(e => console.warn('VAD AudioContext kapanırken hata (önemsiz):', e));
+            }
             audioContextRef.current = null;
         }
 

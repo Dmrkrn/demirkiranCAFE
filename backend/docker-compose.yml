@@ -6,6 +6,6 @@ services:
       - "3000:3000/tcp" # WebServer & Socket.IO
       - "40000-40100:40000-40100/udp" # Mediasoup RTP (UDP range)
     env_file: .env
-    volumes:
-      - ./cookies.txt:/app/cookies.txt # YouTube bot bypass için cookie dosyası (yt-dlp güncelleyebilsin diye rw lazim)
+    environment:
+      - PROXY_URL=http://ankrwrxd-tr-41:ybuwocvjb06h@p.webshare.io:80
     restart: unless-stopped

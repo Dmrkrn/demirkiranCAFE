@@ -114,10 +114,23 @@ function createWindow() {
             });
         });
 
-        server.listen(0, '127.0.0.1', () => {
+        const TARGET_PORT = 32800;
+
+        server.listen(TARGET_PORT, '127.0.0.1');
+
+        server.on('listening', () => {
             const port = server.address().port;
             log.info(`🌐 Production HTTP server başlatıldı: http://127.0.0.1:${port}`);
             mainWindow.loadURL(`http://127.0.0.1:${port}`);
+        });
+
+        server.on('error', (e) => {
+            if (e.code === 'EADDRINUSE') {
+                log.warn(`Port ${TARGET_PORT} kullanımda, rastgele porta geçiliyor. (Dikkat: LocalStorage sıfırlanabilir)`);
+                server.listen(0, '127.0.0.1'); // Fallback to random if exact port is blocked
+            } else {
+                log.error('HTTP Server Error:', e);
+            }
         });
     }
 
@@ -203,7 +216,8 @@ app.whenReady().then(() => {
 
 // IPC: Güncellemeyi yükle ve uygulamayı yeniden başlat
 ipcMain.on('install-update', () => {
-    autoUpdater.quitAndInstall();
+    // isSilent: true, isForceRunAfter: true -> Sesizce (kullanıcı onayı beklemeden) arka planda kur ve hemen başla
+    autoUpdater.quitAndInstall(true, true);
 });
 
 /**

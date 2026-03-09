@@ -413,6 +413,7 @@ export class SignalingGateway implements OnGatewayConnection, OnGatewayDisconnec
             (clientInfo as any).roomId = roomId; // Type hack, better to update interface
             (clientInfo as any).deviceId = data.deviceId; // Cihaz UUID
             clientInfo.username = data.username;
+            (client as any).username = data.username; // Music-bot gateway'in de okuyabilmesi için socket'e de yaz
 
             // Socket.io odasına katıl
             // Önceki odalardan çık ve o odalardaki kullanıcılara haber ver

@@ -13,6 +13,7 @@ interface NowPlaying {
     thumbnail?: string;
     requestedBy: string;
     startedAt: number;
+    streamUrl?: string;
 }
 
 interface QueueItem {
@@ -20,6 +21,7 @@ interface QueueItem {
     title: string;
     duration?: string;
     requestedBy: string;
+    streamUrl?: string;
 }
 
 function extractVideoId(url: string): string | null {
@@ -45,7 +47,11 @@ export function MusicPlayer({
     const [queue, setQueue] = useState<QueueItem[]>([]);
 
     const [isPlaying, setIsPlaying] = useState(false);
-    const [localVolume, setLocalVolume] = useState(70);
+    // Persist Volume check
+    const [localVolume, setLocalVolume] = useState(() => {
+        const stored = localStorage.getItem('musicBotVolume');
+        return stored ? parseInt(stored) : 70;
+    });
     const [localMuted, setLocalMuted] = useState(false);
 
     // Panel açık/kapalı durumu
@@ -53,11 +59,16 @@ export function MusicPlayer({
     const [urlInput, setUrlInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [statusMessage, setStatusMessage] = useState('');
+    const [useIframeFallback, setUseIframeFallback] = useState(false);
 
     // Sürükleme (drag) state'leri
     const [panelPos, setPanelPos] = useState({ x: 200, y: 150 });
     const isDragging = useRef(false);
     const dragOffset = useRef({ x: 0, y: 0 });
+
+    // Queue Sort Drag n Drop
+    const [draggingIndex, setDraggingIndex] = useState<number | null>(null);
+    const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
     const ytPlayerRef = useRef<any>(null);
     const totalPausedDurationRef = useRef<number>(0);
@@ -94,8 +105,11 @@ export function MusicPlayer({
     }, []);
 
     // ========================
-    // YouTube IFrame API
+    // YouTube IFrame API & HTML5 Audio
     // ========================
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    // YouTube IFrame script'ini yükle
     useEffect(() => {
         if ((window as any).YT) return;
         const tag = document.createElement('script');
@@ -103,14 +117,79 @@ export function MusicPlayer({
         document.head.appendChild(tag);
     }, []);
 
-    // YouTube Player oluştur / güncelle
+    // Şarkı değiştiğinde fallback state'ini sıfırla
+    useEffect(() => {
+        setUseIframeFallback(false);
+    }, [nowPlaying?.url]);
+
+    // Şarkı değiştiğinde oynatıcıları güncelle
     useEffect(() => {
         if (!nowPlaying) {
+            // İkisi de kapatılsın
             if (ytPlayerRef.current) {
                 try { ytPlayerRef.current.destroy(); } catch { }
                 ytPlayerRef.current = null;
             }
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current.src = '';
+            }
             return;
+        }
+
+        // 1. Yeni Yöntem: Arka kapıdan gelen direkt HTML5 Ses akışı (Piped API vb.)
+        if (nowPlaying.streamUrl && !useIframeFallback) {
+            // IFrame varsa yok et
+            if (ytPlayerRef.current) {
+                try { ytPlayerRef.current.destroy(); } catch { }
+                ytPlayerRef.current = null;
+            }
+
+            // HTML5 Audio ayarla
+            if (!audioRef.current) {
+                audioRef.current = new Audio(nowPlaying.streamUrl);
+            } else {
+                audioRef.current.src = nowPlaying.streamUrl;
+            }
+
+            const audio = audioRef.current;
+            audio.crossOrigin = "anonymous";
+            audio.volume = localMuted || isDeafened ? 0 : localVolume / 100;
+
+            // Senkronizasyon (İleri sarma)
+            if (nowPlaying.startedAt) {
+                const elapsed = (Date.now() - nowPlaying.startedAt - totalPausedDurationRef.current) / 1000;
+                if (elapsed > 2) audio.currentTime = elapsed;
+            }
+
+            audio.onended = () => {
+                if (socket && nowPlaying?.url) socket.emit('music-ended', { url: nowPlaying.url });
+            };
+            audio.onplay = () => setIsPlaying(true);
+            audio.onpause = () => setIsPlaying(false);
+            audio.onerror = (e) => {
+                console.error("HTML5 Audio Error fallback to IFrame", e);
+                // HTML5 oynayamazsa veya stream patlarsa fallback olarak IFrame'i tetikle
+                setStatusMessage('⚠️ Ses akışı kesildi, IFrame\'e geçiliyor...');
+                setTimeout(() => setStatusMessage(''), 3000);
+                // IFrame kurmayı dene
+                setUseIframeFallback(true);
+            };
+
+            audio.play().catch(err => {
+                console.warn("Audio play blocked", err);
+                setStatusMessage('⚠️ Otomatik oynatma engellendi, oynat tuşuna basın.');
+                setTimeout(() => setStatusMessage(''), 3000);
+            });
+
+            setIsPlaying(true);
+            return;
+        }
+
+        // 2. Fallback Eski Yöntem: YouTube IFrame Modu (Eğer streamUrl yoksa)
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.src = '';
         }
 
         const videoId = extractVideoId(nowPlaying.url);
@@ -130,7 +209,7 @@ export function MusicPlayer({
                 playerVars: {
                     autoplay: 1, controls: 1, modestbranding: 1,
                     rel: 0, playsinline: 1, enablejsapi: 1,
-                    origin: 'https://www.youtube-nocookie.com',
+                    origin: window.location.origin,
                 },
                 events: {
                     onReady: (event: any) => {
@@ -144,7 +223,11 @@ export function MusicPlayer({
                         } catch { }
 
                         event.target.setVolume(localVolume);
-                        if (localMuted || isDeafened) { event.target.mute(); } else { event.target.unMute(); }
+                        if (localMuted || isDeafened || localVolume === 0) {
+                            event.target.mute();
+                        } else {
+                            event.target.unMute();
+                        }
                         event.target.playVideo();
                         setIsPlaying(true);
                         if (nowPlaying?.startedAt) {
@@ -155,7 +238,7 @@ export function MusicPlayer({
                     onStateChange: (event: any) => {
                         const YT = (window as any).YT;
                         if (event.data === YT.PlayerState.ENDED) {
-                            if (socket) socket.emit('music-ended');
+                            if (socket && nowPlaying?.url) socket.emit('music-ended', { url: nowPlaying.url });
                         } else if (event.data === YT.PlayerState.PLAYING) {
                             setIsPlaying(true);
                         } else if (event.data === YT.PlayerState.PAUSED) {
@@ -171,13 +254,14 @@ export function MusicPlayer({
                             2: '❌ Geçersiz video ID\'si',
                             5: '❌ HTML5 oynatıcı hatası',
                             100: '❌ Bu video bulunamadı veya kaldırılmış',
-                            101: '⚠️ Bu şarkı telif kısıtlaması nedeniyle çalınamıyor, atlanıyor...',
-                            150: '⚠️ Bu şarkı telif kısıtlaması nedeniyle çalınamıyor, atlanıyor...',
+                            101: '⚠️ Şarkı IFrame\'de çalınamıyor (Telif), atlamak için "⏭" tuşuna basın.',
+                            150: '⚠️ Şarkı IFrame\'de çalınamıyor (Telif), atlamak için "⏭" tuşuna basın.',
                         };
                         setStatusMessage(errorMessages[errorCode] || `❌ YouTube Hatası: ${errorCode}`);
                         setTimeout(() => setStatusMessage(''), 5000);
 
-                        handleSkip();
+                        // NOT: Manuel olarak atlamaları tercih ederiz. global skipten kaçınmak için.
+                        // handleSkip(); 
                     },
                 },
             });
@@ -188,13 +272,28 @@ export function MusicPlayer({
         } else {
             (window as any).onYouTubeIframeAPIReady = createPlayer;
         }
-    }, [nowPlaying?.url]);
+    }, [nowPlaying?.url, nowPlaying?.streamUrl, nowPlaying?.startedAt, useIframeFallback]);
 
     // Ses seviyesi ve mute kontrolü
     useEffect(() => {
+        const isMuted = localMuted || isDeafened || localVolume === 0;
+
+        // Save local setting to persist
+        localStorage.setItem('musicBotVolume', localVolume.toString());
+
+        // IFrame Volume
         if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
             ytPlayerRef.current.setVolume(localVolume);
-            if (localMuted || isDeafened) { ytPlayerRef.current.mute(); } else { ytPlayerRef.current.unMute(); }
+            if (isMuted) {
+                ytPlayerRef.current.mute();
+            } else {
+                ytPlayerRef.current.unMute();
+            }
+        }
+
+        // HTML5 Audio Volume
+        if (audioRef.current) {
+            audioRef.current.volume = isMuted ? 0 : localVolume / 100;
         }
     }, [localVolume, localMuted, isDeafened]);
 
@@ -208,12 +307,25 @@ export function MusicPlayer({
             setNowPlaying(data.nowPlaying);
             const shouldPlay = !!data.nowPlaying && !data.isPaused;
             setIsPlaying(shouldPlay);
+
+            // IFrame Sync
             if (ytPlayerRef.current) {
                 try {
                     if (shouldPlay && typeof ytPlayerRef.current.playVideo === 'function') {
                         ytPlayerRef.current.playVideo();
                     } else if (!shouldPlay && data.nowPlaying && typeof ytPlayerRef.current.pauseVideo === 'function') {
                         ytPlayerRef.current.pauseVideo();
+                    }
+                } catch { }
+            }
+
+            // HTML5 Audio Sync
+            if (audioRef.current) {
+                try {
+                    if (shouldPlay) {
+                        audioRef.current.play().catch(() => { });
+                    } else {
+                        audioRef.current.pause();
                     }
                 } catch { }
             }
@@ -271,6 +383,20 @@ export function MusicPlayer({
         setTimeout(() => setStatusMessage(''), 3000);
     }, [request]);
 
+    const handleSort = useCallback(async (oldIndex: number, newIndex: number) => {
+        if (oldIndex === newIndex) return;
+
+        // Optimistic UI Update so visual drag finishes immediately without lag
+        const newD = [...queue];
+        const [movedItem] = newD.splice(oldIndex, 1);
+        newD.splice(newIndex, 0, movedItem);
+        setQueue(newD);
+
+        const result = await request<{ oldIndex: number, newIndex: number }, any>('music-move', { oldIndex, newIndex });
+        if (result?.message) setStatusMessage(result.message);
+        setTimeout(() => setStatusMessage(''), 3000);
+    }, [queue, request]);
+
     const handleStop = useCallback(async () => {
         const result = await request<any, any>('music-stop');
         setStatusMessage(result?.message || '');
@@ -308,7 +434,7 @@ export function MusicPlayer({
                     width: '100%',
                 }}
             >
-                🎵 {nowPlaying ? nowPlaying.title.slice(0, 20) + (nowPlaying.title.length > 20 ? '...' : '') : 'Müzik Botu'}
+                🎵 {nowPlaying ? `${nowPlaying.title.slice(0, 20)}${nowPlaying.title.length > 20 ? '...' : ''} (👤 ${nowPlaying.requestedBy})` : 'Müzik Botu'}
             </button>
 
             {/* YouTube Player - HER ZAMAN DOM'da, asla unmount edilmez */}
@@ -401,18 +527,57 @@ export function MusicPlayer({
                         <div className="music-panel-queue">
                             <div className="music-panel-queue-label">📋 Sırada ({queue.length})</div>
                             {queue.map((item, i) => (
-                                <div key={i} className="music-panel-queue-item">
+                                <div
+                                    key={`${i}-${item.title}`}
+                                    className={`music-panel-queue-item ${draggingIndex === i ? 'dragging' : ''} ${dragOverIndex === i ? 'drag-over' : ''}`}
+                                    draggable
+                                    onDragStart={(e) => {
+                                        setDraggingIndex(i);
+                                        // required for firefox 
+                                        e.dataTransfer.setData('text/plain', i.toString());
+                                        e.dataTransfer.effectAllowed = 'move';
+                                    }}
+                                    onDragOver={(e) => {
+                                        e.preventDefault();
+                                        e.dataTransfer.dropEffect = 'move';
+                                        if (dragOverIndex !== i) setDragOverIndex(i);
+                                    }}
+                                    onDragLeave={(e) => {
+                                        e.preventDefault();
+                                        if (dragOverIndex === i) setDragOverIndex(null);
+                                    }}
+                                    onDrop={(e) => {
+                                        e.preventDefault();
+                                        if (draggingIndex !== null && draggingIndex !== i) {
+                                            handleSort(draggingIndex, i);
+                                        }
+                                        setDraggingIndex(null);
+                                        setDragOverIndex(null);
+                                    }}
+                                    onDragEnd={() => {
+                                        setDraggingIndex(null);
+                                        setDragOverIndex(null);
+                                    }}
+                                >
                                     <span className="queue-idx">{i + 1}.</span>
                                     <span className="queue-name">{item.title}</span>
                                     <span className="queue-by">👤 {item.requestedBy}</span>
-                                    <button
-                                        onClick={() => handleRemove(i)}
-                                        className="panel-ctrl-btn danger"
-                                        style={{ width: '20px', height: '20px', padding: 0, fontSize: '10px', marginLeft: 'auto' }}
-                                        title="Kuyruktan Çıkar"
-                                    >
-                                        ✕
-                                    </button>
+                                    <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px', alignItems: 'center' }}>
+                                        <button
+                                            onClick={() => handleRemove(i)}
+                                            className="panel-ctrl-btn danger"
+                                            style={{ width: '20px', height: '20px', padding: 0, fontSize: '10px' }}
+                                            title="Kuyruktan Çıkar"
+                                        >
+                                            ✕
+                                        </button>
+                                        <div
+                                            title="Tut ve sürükle"
+                                            style={{ cursor: 'grab', fontSize: '14px', color: '#94a3b8', padding: '0 4px', userSelect: 'none' }}
+                                        >
+                                            ☰
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>

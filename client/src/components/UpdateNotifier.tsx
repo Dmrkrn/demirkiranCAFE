@@ -63,17 +63,21 @@ const UpdateNotifier: React.FC = () => {
         <div className="update-notifier-container">
             <div className="update-banner">
                 <div className="update-content">
-                    <div className="update-text">
+                    <div className="update-icon-wrapper">
                         <RocketIcon />
-                        {updateStatus === 'available' && `Yeni güncelleme bulundu: v${version}`}
-                        {updateStatus === 'downloading' && `Güncelleniyor... %${Math.round(progress)}`}
-                        {updateStatus === 'downloaded' && `Güncelleme tamamlandı! Yeniden başlatılıyor...`}
                     </div>
-                    {updateStatus === 'downloaded' && (
-                        <button className="update-button" disabled>
-                            Yeniden Başlatılıyor...
-                        </button>
-                    )}
+
+                    <div className="update-text">
+                        {updateStatus === 'available' && `Yeni Bir Sürüm Bulundu!`}
+                        {updateStatus === 'downloading' && `Güncelleme İndiriliyor...`}
+                        {updateStatus === 'downloaded' && `Kuruluma Geçiliyor...`}
+                    </div>
+
+                    <div className="update-subtext">
+                        {updateStatus === 'available' && `v${version} sürümü yüklenmek üzere hazırlanıyor.`}
+                        {updateStatus === 'downloading' && `Lütfen bekleyin, arka planda yeni özellikler indiriliyor (%${Math.round(progress)}).`}
+                        {updateStatus === 'downloaded' && `İndirme tamamlandı! Uygulama saniyeler içinde yeni sürüme geçecek.`}
+                    </div>
                 </div>
 
                 {updateStatus === 'downloading' && (
@@ -83,6 +87,12 @@ const UpdateNotifier: React.FC = () => {
                             style={{ width: `${progress}%` }}
                         />
                     </div>
+                )}
+
+                {updateStatus === 'downloaded' && (
+                    <button className="update-button" disabled>
+                        Yeniden Başlatılıyor
+                    </button>
                 )}
             </div>
         </div>

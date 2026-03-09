@@ -201,7 +201,8 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
                     const normalizedVolume = Math.min(100, Math.round((average / 255) * 100));
 
                     setTestVolume(normalizedVolume);
-                    setIsTestSpeaking(average > micThreshold);
+                    // Eşik karşılaştırmasını normalize edilmiş % (0-100) üzerinden yap
+                    setIsTestSpeaking(normalizedVolume > micThreshold);
 
                     animationRef.current = requestAnimationFrame(analyze);
                 };

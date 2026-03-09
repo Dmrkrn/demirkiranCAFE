@@ -1179,35 +1179,16 @@ function App() {
                                                         </div>
 
                                                         {/* Diğerleri (Sadece Kamera olanlar) */}
-                                                        {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => {
-                                                            const videoConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'video' && !c.appData?.isScreen);
-                                                            const hasVideo = !!videoConsumer;
-
-                                                            return (
-                                                                <div
-                                                                    key={peer.id}
-                                                                    className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
-                                                                    onContextMenu={(e) => {
-                                                                        e.preventDefault();
-                                                                        setContextMenu({
-                                                                            x: e.clientX,
-                                                                            y: e.clientY,
-                                                                            peerId: peer.id
-                                                                        });
-                                                                    }}
-                                                                >
-                                                                    {hasVideo ? (
-                                                                        <VideoPlayer stream={videoConsumer.stream} />
-                                                                    ) : (
-                                                                        <div className="video-placeholder-content">
-                                                                            <Avatar name={peer.username} size="sm" />
-                                                                            <div className="placeholder-name">{peer.username}</div>
-                                                                        </div>
-                                                                    )}
-                                                                    <div className="video-label">{peer.username}</div>
-                                                                </div>
-                                                            );
-                                                        })}
+                                                        {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => (
+                                                            <RemoteVideoGridItem
+                                                                key={peer.id}
+                                                                peer={peer}
+                                                                consumers={consumers}
+                                                                size="sm"
+                                                                setContextMenu={setContextMenu}
+                                                                excludeScreen={true}
+                                                            />
+                                                        ))}
                                                     </div>
 
                                                     {/* Ana Alan: Ekran Paylaşımı */}
@@ -1383,57 +1364,16 @@ function App() {
                                                     </div>
 
                                                     {/* Diğer kullanıcıların video'ları */}
-                                                    {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => {
-                                                        const videoConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'video');
-                                                        const hasVideo = !!videoConsumer;
-
-                                                        return (
-                                                            <div
-                                                                key={peer.id}
-                                                                className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
-                                                                onContextMenu={(e) => {
-                                                                    e.preventDefault();
-                                                                    setContextMenu({
-                                                                        x: e.clientX,
-                                                                        y: e.clientY,
-                                                                        peerId: peer.id
-                                                                    });
-                                                                }}
-                                                                onClick={(e) => {
-                                                                    const target = e.currentTarget;
-                                                                    if (document.fullscreenElement) {
-                                                                        document.exitFullscreen();
-                                                                    } else {
-                                                                        target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
-                                                                    }
-                                                                }}
-                                                                title={hasVideo ? "Tam ekran için tıkla" : `${peer.username} (Kamera kapalı)`}
-                                                                style={{ cursor: 'pointer' }}
-                                                            >
-                                                                {hasVideo ? (
-                                                                    <VideoPlayer stream={videoConsumer.stream} />
-                                                                ) : (
-                                                                    <div className="video-placeholder-content">
-                                                                        <Avatar name={peer.username} size="xl" />
-                                                                        <div className="placeholder-name">{peer.username}</div>
-
-                                                                    </div>
-                                                                )}
-
-                                                                <div className="video-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                                                    <span>{peer.username}</span>
-                                                                    <div className="video-status-icons" style={{ display: 'flex', gap: '2px' }}>
-                                                                        {peer.isMicMuted && (
-                                                                            <MicOffIcon size={14} style={{ color: '#ff4d4d' }} />
-                                                                        )}
-                                                                        {peer.isDeafened && (
-                                                                            <HeadphonesOffIcon size={14} style={{ color: '#ff4d4d' }} />
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
+                                                    {peers.filter(p => (!p.roomId && selectedRoom === 'main') || p.roomId === selectedRoom).map((peer) => (
+                                                        <RemoteVideoGridItem
+                                                            key={peer.id}
+                                                            peer={peer}
+                                                            consumers={consumers}
+                                                            size="xl"
+                                                            setContextMenu={setContextMenu}
+                                                            showStatusIcons={true}
+                                                        />
+                                                    ))}
                                                 </>
                                             )}
                                         </div>
@@ -1828,6 +1768,81 @@ function AudioPlayer({ stream, muted, volume = 100, speakerId }: { stream: Media
             playsInline
             style={{ display: 'none' }}
         />
+    );
+}
+
+/**
+ * Remote peer grid item for displaying video or placeholder with avatar
+ */
+function RemoteVideoGridItem({
+    peer,
+    consumers,
+    size = 'xl',
+    setContextMenu,
+    excludeScreen = false,
+    showStatusIcons = false
+}: {
+    peer: any;
+    consumers: any[];
+    size?: 'sm' | 'xl';
+    setContextMenu: (val: any) => void;
+    excludeScreen?: boolean;
+    showStatusIcons?: boolean;
+}) {
+    const videoConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'video' && (!excludeScreen || !c.appData?.isScreen));
+    const audioConsumer = consumers.find(c => c.peerId === peer.id && c.kind === 'audio' && !c.appData?.isScreen);
+    const hasVideo = !!videoConsumer;
+
+    const rawIsSpeaking = useAudioLevel(audioConsumer?.stream || null);
+    const isSpeaking = rawIsSpeaking && !peer.isMicMuted;
+
+    return (
+        <div
+            className={`video-container ${hasVideo ? 'remote-video' : 'remote-no-video'}`}
+            onContextMenu={(e) => {
+                e.preventDefault();
+                setContextMenu({
+                    x: e.clientX,
+                    y: e.clientY,
+                    peerId: peer.id
+                });
+            }}
+            onClick={(e) => {
+                if (size === 'xl') { // only fullscreen in grid mode
+                    const target = e.currentTarget;
+                    if (document.fullscreenElement) {
+                        document.exitFullscreen();
+                    } else {
+                        target.requestFullscreen().catch(err => console.error("Fullscreen error:", err));
+                    }
+                }
+            }}
+            title={hasVideo && size === 'xl' ? "Tam ekran için tıkla" : `${peer.username} (Kamera kapalı)`}
+            style={size === 'xl' ? { cursor: 'pointer' } : {}}
+        >
+            {hasVideo ? (
+                <VideoPlayer stream={videoConsumer.stream} />
+            ) : (
+                <div className="video-placeholder-content">
+                    <Avatar name={peer.username} size={size} isSpeaking={isSpeaking} />
+                    <div className="placeholder-name">{peer.username}</div>
+                </div>
+            )}
+
+            <div className="video-label" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span>{peer.username}</span>
+                {showStatusIcons && (
+                    <div className="video-status-icons" style={{ display: 'flex', gap: '2px' }}>
+                        {peer.isMicMuted && (
+                            <MicOffIcon size={14} style={{ color: '#ff4d4d' }} />
+                        )}
+                        {peer.isDeafened && (
+                            <HeadphonesOffIcon size={14} style={{ color: '#ff4d4d' }} />
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
     );
 }
 

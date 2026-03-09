@@ -26,8 +26,9 @@ FROM node:22-alpine AS production
 
 # Mediasoup worker'ın çalışması için gerekli kütüphaneler
 # ffmpeg + yt-dlp + spotdl: Müzik botu için (YouTube/Spotify ses indirme + RTP dönüşüm)
+# bgutil-ytdlp-pot-provider: YouTube PO Token otomatik üretici (bot bypass)
 RUN apk add --no-cache libstdc++ ffmpeg python3 py3-pip \
-    && pip3 install --break-system-packages yt-dlp spotdl
+    && pip3 install --break-system-packages yt-dlp spotdl bgutil-ytdlp-pot-provider
 
 WORKDIR /app
 

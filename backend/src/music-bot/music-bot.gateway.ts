@@ -82,6 +82,14 @@ export class MusicBotGateway implements OnModuleInit {
         return this.musicBotService.removeFromQueue(data.index, username);
     }
 
+    @SubscribeMessage('music-move')
+    handleMove(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { oldIndex: number, newIndex: number },
+    ) {
+        return this.musicBotService.moveInQueue(data.oldIndex, data.newIndex);
+    }
+
     @SubscribeMessage('music-queue')
     handleQueue(@ConnectedSocket() client: Socket) {
         return this.musicBotService.getQueue();
@@ -89,7 +97,18 @@ export class MusicBotGateway implements OnModuleInit {
 
     // YENİ: Client'taki React Player şarkı bittiğini bildirdiğinde
     @SubscribeMessage('music-ended')
-    handleMusicEnded(@ConnectedSocket() client: Socket) {
+    handleMusicEnded(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data?: { url: string },
+    ) {
+        const currentPlaying = this.musicBotService.getQueue().nowPlaying;
+
+        // Eğer client'in "bitti" dediği şarkı, backend'de şu an çalan şarkı değilse (lag, gecikme, eski şarkı) yoksay
+        if (data && data.url && currentPlaying && currentPlaying.url !== data.url) {
+            this.logger.debug(`🎵 Gecikmiş 'music-ended' sinyali yoksayıldı. Beklenen: ${currentPlaying.url}, Gelen: ${data.url}`);
+            return;
+        }
+
         this.logger.log(`🎵 Şarkı bitti (Client bildirdi), sıradakine geçiliyor...`);
         this.musicBotService.playNext();
     }

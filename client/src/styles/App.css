@@ -336,8 +336,8 @@
 .video-grid {
     flex: 1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: var(--spacing-lg);
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: var(--spacing-md);
     padding: var(--spacing-md);
     overflow-y: auto;
     min-height: 0;
@@ -494,6 +494,7 @@
 .video-container {
     position: relative;
     aspect-ratio: 16 / 9;
+    min-height: 112px;
     background-color: var(--bg-secondary);
     border-radius: var(--radius-lg);
     overflow: hidden;
@@ -604,6 +605,7 @@
     from {
         transform: rotate(0deg);
     }
+
     to {
         transform: rotate(360deg);
     }
@@ -711,8 +713,9 @@
 }
 
 .chat-section {
-    width: 400px;
-    min-width: 320px;
+    flex: 0 1 350px;
+    min-width: 240px;
+    max-width: 400px;
     height: 100%;
     max-height: calc(100vh - 200px);
     background-color: var(--bg-secondary);

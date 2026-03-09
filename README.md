@@ -30,7 +30,8 @@ Demirkıran Cafe, oyuncular ve arkadaş grupları için geliştirilmiş Discord 
 *   **🎬 Senkronize Müzik & Video Botu:** 
     * YouTube videolarını ve müziklerini odadaki herkesle *aynı anda, senkronize* dinleyin.
     * Herkesin eklenti yapabildiği global bir kuyruk sistemi.
-    * Bireysel ses kontrol sistemi ile Müzik Botu sesini kısıp açabilirsiniz.
+    * Şarkıların sırasını değiştirmek için **Sürükle & Bırak (Drag & Drop)** özelliği.
+    * İstemci taraflı **Kalıcı Ses Ayarı (Persistent Volume)** ile kendi Müzik Botu sesinizi kısıp açabilirsiniz (tercihiniz hafızaya alınır).
 *   **🎮 Ekran Paylaşımı (Ekran & Pencere):**
     * 1080p 60FPS'e kadar donanım hızlandırmalı sistem veya uygulama sesleriyle birlikte ekran paylaşımı.
     * Ekran paylaşımlarında "Tam Ekran Yap" özelliği.
@@ -144,7 +145,8 @@ Demirkıran Cafe is a privately hosted, Discord-like communication app designed 
 
 *   **🎬 Synchronized Music Bot:** 
     * Add YouTube videos and music links to a global queue and listen to them in perfect sync with everyone in the room.
-    * Features local volume control specifically for the bot.
+    * **Drag & Drop** queue items to re-organize the playing sequence on the fly.
+    * Features local, **Persistent Volume Control** specifically for the bot (remembers your slider position).
 *   **🎮 Hardware-Accelerated Screen Share:**
     * Liquid smooth game and desktop sharing over WebRTC with full system audio forwarding.
 *   **🎙️ Low-Latency Voice Chat (Mediasoup SFU):**
