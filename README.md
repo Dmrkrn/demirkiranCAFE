@@ -44,6 +44,8 @@ Demirkıran Cafe, oyuncular ve arkadaş grupları için geliştirilmiş Discord 
     * uIOhook altyapısıyla oyun oynarken arkaplanda çalışsa bile mikrofonu `M`, hoparlörü `D` tuşu ile kapatıp açabilirsiniz (Kısayollar Türkçe Q klayveyi destekler ve değiştirilebilir).
 *   **💬 Gerçek Zamanlı Sohbet:**
     * Modern Web soketleriyle anında mesajlaşma.
+*   **🔄 Otomatik Güncelleme (Auto-Updater):**
+    * Yeni bir sürüm yayınlandığında şık bir arayüzle kullanıcıyı uyarır ve tek tıkla yeni sürümü indirip kurar.
 
 ---
 
@@ -97,6 +99,11 @@ graph LR
   <img src="screenshots/settings1.JPG" alt="Audio Settings" width="400" style="border-radius: 10px;"/>
   <br/><br/>
   <img src="screenshots/settings2.JPG" alt="Hotkey Settings" width="400" style="border-radius: 10px;"/>
+</div>
+
+### Otomatik Güncelleme Arayüzü
+<div align="center">
+  <img src="screenshots/update1.JPG" alt="Update Notifier Interface" width="400" style="border-radius: 10px;"/>
 </div>
 
 ---
@@ -158,6 +165,8 @@ Demirkıran Cafe is a privately hosted, Discord-like communication app designed 
     * Keep working or playing your games in peace. Thanks to low-level `uIOhook` bindings, you can toggle your microphone (`M`) or deafen yourself (`D`) globally from anywhere in the OS.
 *   **💬 Real-Time Chat:**
     * Instant messaging alongside the video feeds.
+*   **🔄 Auto-Updater:**
+    * Elegant, non-intrusive update notification system that allows users to download and install new releases with a single click.
 
 ## 🛠️ Architecture
 
