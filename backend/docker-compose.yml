@@ -6,6 +6,6 @@ services:
       - "3000:3000/tcp" # WebServer & Socket.IO
       - "40000-40100:40000-40100/udp" # Mediasoup RTP (UDP range)
     env_file: .env
-    environment:
-      - PROXY_URL=http://ankrwrxd-tr-41:ybuwocvjb06h@p.webshare.io:80
+    volumes:
+      - ./Webshare residential proxies.txt:/app/proxies.txt:ro  # Rotating proxy havuzu
     restart: unless-stopped

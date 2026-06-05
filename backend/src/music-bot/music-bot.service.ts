@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import ytSearch from 'yt-search';
 import { execFile } from 'child_process';
 import { existsSync } from 'fs';
+import { ProxyPoolService } from './proxy-pool.service';
 
 export interface QueueItem {
     url: string;
@@ -19,6 +20,8 @@ export interface NowPlaying extends QueueItem {
 @Injectable()
 export class MusicBotService {
     private readonly logger = new Logger(MusicBotService.name);
+
+    constructor(private readonly proxyPool: ProxyPoolService) {}
 
     private queue: QueueItem[] = [];
     private nowPlaying: NowPlaying | null = null;
@@ -46,10 +49,19 @@ export class MusicBotService {
      * yt-dlp ile direkt ses stream URL'si çek (Piped başarısız olduğunda fallback)
      * cookies.txt varsa YouTube Premium hesabıyla bot korumasını aşar
      */
-    private getStreamUrlViaYtDlp(videoId: string): Promise<string | null> {
+    private getStreamUrlViaYtDlp(videoId: string, maxRetries = 3): Promise<string | null> {
+        return this.tryYtDlpWithRotation(videoId, 0, maxRetries);
+    }
+
+    /**
+     * Her denemede farklı bir proxy ile yt-dlp çalıştır
+     * Başarısız proxy'ler blacklist'e eklenir
+     */
+    private tryYtDlpWithRotation(videoId: string, attempt: number, maxRetries: number): Promise<string | null> {
         return new Promise((resolve) => {
-            // Residential proxy URL (YouTube datacenter IP'leri engelliyor)
-            const proxyUrl = process.env.PROXY_URL;
+            const proxy = this.proxyPool.getRandomProxy();
+            const proxyUrl = proxy?.url;
+            const cookiesPath = 'cookies.txt';
 
             const args = [
                 '-f', 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio',
@@ -57,27 +69,47 @@ export class MusicBotService {
                 '--no-playlist',
                 '--no-check-certificates',
                 '--js-runtimes', 'node',
+                '--extractor-args', 'youtube:player_client=android',
                 ...(proxyUrl ? ['--proxy', proxyUrl] : []),
+                ...(existsSync(cookiesPath) ? ['--cookies', cookiesPath] : []),
                 `https://www.youtube.com/watch?v=${videoId}`,
             ];
 
-            this.logger.log(`🔧 yt-dlp fallback başlatılıyor (proxy: ${proxyUrl ? 'VAR' : 'YOK'})...`);
+            const proxyLabel = proxy ? `${proxy.username}@${proxy.host}` : 'YOK';
+            this.logger.log(`🔧 yt-dlp deneme ${attempt + 1}/${maxRetries} (proxy: ${proxyLabel}, havuz: ${this.proxyPool.getAvailableCount()}/${this.proxyPool.getPoolSize()})...`);
 
             execFile('yt-dlp', args, { timeout: 30000 }, (error, stdout, stderr) => {
                 if (error) {
-                    this.logger.warn(`yt-dlp hatası: ${error.message}`);
-                    if (stderr) this.logger.debug(`yt-dlp stderr: ${stderr.substring(0, 200)}`);
-                    resolve(null);
+                    this.logger.warn(`yt-dlp hatası (deneme ${attempt + 1}): ${error.message}`);
+                    if (stderr) this.logger.debug(`yt-dlp stderr: ${stderr.substring(0, 300)}`);
+
+                    // Proxy'yi blacklist'e ekle (telif/engel hatası ise)
+                    if (proxyUrl && (stderr?.includes('403') || stderr?.includes('Sign in') || stderr?.includes('copyright') || stderr?.includes('blocked') || error.message.includes('403'))) {
+                        this.proxyPool.blacklistProxy(proxyUrl);
+                    }
+
+                    // Retry with different proxy
+                    if (attempt + 1 < maxRetries) {
+                        this.logger.log(`🔄 Farklı proxy ile tekrar deneniyor...`);
+                        this.tryYtDlpWithRotation(videoId, attempt + 1, maxRetries).then(resolve);
+                    } else {
+                        this.logger.warn(`❌ yt-dlp ${maxRetries} denemede de başarısız oldu.`);
+                        resolve(null);
+                    }
                     return;
                 }
 
                 const url = stdout.trim().split('\n')[0]; // İlk URL'yi al
                 if (url && url.startsWith('http')) {
-                    this.logger.log(`✅ yt-dlp başarılı! Stream URL çekildi.`);
+                    this.logger.log(`✅ yt-dlp başarılı! (deneme ${attempt + 1}, proxy: ${proxyLabel})`);
                     resolve(url);
                 } else {
                     this.logger.warn(`yt-dlp geçersiz çıktı: ${url?.substring(0, 100)}`);
-                    resolve(null);
+                    if (attempt + 1 < maxRetries) {
+                        this.tryYtDlpWithRotation(videoId, attempt + 1, maxRetries).then(resolve);
+                    } else {
+                        resolve(null);
+                    }
                 }
             });
         });

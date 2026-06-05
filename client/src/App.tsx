@@ -79,7 +79,17 @@ function App() {
     // Kullanıcı Ses Seviyeleri (0-100) - peerId -> volume
     const [userVolumes, setUserVolumes] = useState<Record<string, number>>({});
     // Aktif Hoparlör ID
-    const [activeSpeakerId, setActiveSpeakerId] = useState<string>('');
+    const [activeSpeakerId, setActiveSpeakerId] = useState<string>(() => {
+        return localStorage.getItem('demirkiran-active-speaker') || 'default';
+    });
+
+    // Hoparlör değiştiğinde kaydet
+    useEffect(() => {
+        if (activeSpeakerId) {
+            localStorage.setItem('demirkiran-active-speaker', activeSpeakerId);
+            console.log('🔊 Hoparlör tercihi kaydedildi:', activeSpeakerId);
+        }
+    }, [activeSpeakerId]);
     // Kamera durumu (local state - useMediaDevices'tan bağımsız)
     const [cameraOn, setCameraOn] = useState(false);
 
@@ -772,7 +782,7 @@ function App() {
             setShowScreenPicker(true);
         } else {
             // Tarayıcıda doğrudan getDisplayMedia kullan
-            const stream = await startScreenShare('');
+            const stream = await startScreenShare('', false);
             if (stream) {
                 // Video produce et
                 const screenTrack = stream.getVideoTracks()[0];
@@ -799,7 +809,7 @@ function App() {
     const handleScreenSourceSelect = async (sourceId: string) => {
         setShowScreenPicker(false);
 
-        const stream = await startScreenShare(sourceId);
+        const stream = await startScreenShare(sourceId, false);
         if (stream) {
             // Video produce et
             const screenTrack = stream.getVideoTracks()[0];
@@ -1604,7 +1614,7 @@ function App() {
                                     <AudioPlayer
                                         key={consumer.id}
                                         stream={consumer.stream}
-                                        muted={isDeafened || isSharing}
+                                        muted={isDeafened}
                                         volume={userVolumes[consumer.peerId] ?? 100}
                                         speakerId={activeSpeakerId}
                                     />
@@ -1722,30 +1732,34 @@ function AudioPlayer({ stream, muted, volume = 100, speakerId }: { stream: Media
         const audio = audioRef.current;
         if (audio && speakerId && (audio as any).setSinkId) {
             (audio as any).setSinkId(speakerId)
-                .then(() => console.log('🔊 Hoparlör değiştirildi:', speakerId))
-                .catch((e: any) => console.error('❌ Hoparlör değiştirilemedi:', e));
+                .then(() => console.log(`🔊 [AudioPlayer] Hoparlör değiştirildi: ${speakerId} (Stream: ${stream.id})`))
+                .catch((e: any) => console.error(`❌ [AudioPlayer] Hoparlör değiştirilemedi: ${speakerId}`, e));
         }
-    }, [speakerId]);
+    }, [speakerId, stream.id]); // added stream.id to deps so if component stays mounted but stream changes it logs
 
     useEffect(() => {
         const audio = audioRef.current;
-        if (!audio || !stream) return;
+        if (!audio || !stream) {
+            console.log(`[AudioPlayer] Stream yok veya audio ref eksik. Stream:`, stream);
+            return;
+        }
 
+        console.log(`[AudioPlayer] 🎵 Stream bağlandı: ${stream.id}, Tracks:`, stream.getAudioTracks().map(t => t.readyState));
         audio.srcObject = stream;
 
         const playAudio = async () => {
             try {
                 await audio.play();
-                console.log('🔊 Audio playback started');
+                console.log(`🔊 [AudioPlayer] Audio playback started for stream: ${stream.id}`);
             } catch (error) {
-                console.warn('⚠️ Audio autoplay blocked, waiting for user interaction');
+                console.warn(`⚠️ [AudioPlayer] Audio autoplay blocked:`, error);
                 const handleInteraction = async () => {
                     try {
                         await audio.play();
-                        console.log('🔊 Audio playback started after interaction');
+                        console.log(`🔊 [AudioPlayer] Audio playback started after interaction for stream: ${stream.id}`);
                         document.removeEventListener('click', handleInteraction);
                     } catch (e) {
-                        console.error('Audio play failed:', e);
+                        console.error(`[AudioPlayer] Audio play failed after interaction:`, e);
                     }
                 };
                 document.addEventListener('click', handleInteraction);
@@ -1753,6 +1767,10 @@ function AudioPlayer({ stream, muted, volume = 100, speakerId }: { stream: Media
         };
 
         playAudio();
+
+        return () => {
+            console.log(`[AudioPlayer] 🛑 Component unmounting / Stream değişiyor. Stream ID: ${stream.id}`);
+        }
     }, [stream]);
 
     useEffect(() => {
@@ -1766,6 +1784,7 @@ function AudioPlayer({ stream, muted, volume = 100, speakerId }: { stream: Media
             ref={audioRef}
             muted={muted}
             playsInline
+            autoPlay // Eksikti, eklendi. (WebRTC için önemli)
             style={{ display: 'none' }}
         />
     );

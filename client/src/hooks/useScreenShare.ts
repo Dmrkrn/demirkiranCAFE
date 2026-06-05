@@ -80,28 +80,18 @@ export function useScreenShare(): UseScreenShareReturn {
      * @param sourceId - Electron'dan seçilen kaynak ID'si (veya boş string tarayıcı için)
      * @param includeAudio - Sistem sesini dahil et (varsayılan: sadece tam ekran için true)
      */
-    const startScreenShare = useCallback(async (sourceId: string, includeAudio: boolean = true): Promise<MediaStream | null> => {
+    const startScreenShare = useCallback(async (sourceId: string, includeAudio: boolean = false): Promise<MediaStream | null> => {
         try {
             console.log('🖥️ Ekran paylaşımı başlatılıyor...', { sourceId, includeAudio });
 
             let stream: MediaStream;
 
             if (window.electronAPI && sourceId) {
-                // Pencere paylaşımında ses dahil edilmez (demirkiranCAFE sesi gitmemesi için)
                 const isWindowShare = sourceId.startsWith('window:');
 
                 console.log(`🖥️ Kaynak türü: ${isWindowShare ? 'PENCERE' : 'TAM EKRAN'}`);
 
-                // Video + Audio birlikte al (Electron için)
-                stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            chromeMediaSourceId: sourceId,
-                        },
-                        // @ts-ignore - Windows/Electron deneysel özellik (Uygulama kendi sesini duymasın)
-                        systemAudio: 'exclude',
-                    } as any,
+                const constraints: any = {
                     video: {
                         mandatory: {
                             chromeMediaSource: 'desktop',
@@ -110,24 +100,23 @@ export function useScreenShare(): UseScreenShareReturn {
                             maxWidth: 1920,
                             minHeight: 720,
                             maxHeight: 1080,
-                            minFrameRate: 60,
-                            maxFrameRate: 60,
-                        },
-                    } as MediaTrackConstraints,
-                });
+                            minFrameRate: 30,
+                            maxFrameRate: 60
+                        }
+                    }
+                };
 
-                // Pencere paylaşımında ses dahil edilsin mi? (includeAudio)
-                // Kendi sesimizi engellemek için restrictOwnAudio constraint kullanıyoruz ve işe yarayacağını umuyoruz.
-                if (!includeAudio) {
-                    const audioTracks = stream.getAudioTracks();
-                    audioTracks.forEach(track => {
-                        stream.removeTrack(track);
-                        track.stop();
-                        console.log('🔇 Audio track kaldırıldı (pencere paylaşımı)');
-                    });
-                } else {
-                    console.log('🔊 Tam ekran paylaşımı: Ses dahil');
+                // Sadece istenirse ses ekle (Donanım çakışmasını önlemek için varsayılan KAPALI)
+                if (includeAudio) {
+                    constraints.audio = {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            chromeMediaSourceId: sourceId,
+                        }
+                    };
                 }
+
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
 
                 // Audio track için constraints'leri sonradan uygula (Echo Cancellation)
                 const audioTrack = stream.getAudioTracks()[0];
@@ -135,19 +124,9 @@ export function useScreenShare(): UseScreenShareReturn {
                     try {
                         // Chrome/WebRTC'nin gelişmiş yankı engelleme ayarları
                         await audioTrack.applyConstraints({
-                            echoCancellation: true,
-                            noiseSuppression: true,
-                            autoGainControl: true, // Echo'yu bastırmak için önemli!
-                            // @ts-ignore - Standart olmayan constraintler
-                            googEchoCancellation: true,
-                            googAutoGainControl: true,
-                            googNoiseSuppression: true,
-                            googHighpassFilter: true, // İnsan sesi dışındaki frekansları kes
-                            googAudioMirroring: false,
-                            // @ts-ignore - Deneysel özellik (Hoparlörden kendi sesini duyma)
-                            suppressLocalAudioPlayback: true,
-                            // @ts-ignore - Kendi sesini (uygulama sesini) yayına katma
-                            restrictOwnAudio: true,
+                            echoCancellation: false,
+                            noiseSuppression: false,
+                            autoGainControl: false,
                         });
                         console.log('✅ Ekran paylaşımı ses kısıtlamaları uygulandı (Google Constraints)');
                     } catch (err) {

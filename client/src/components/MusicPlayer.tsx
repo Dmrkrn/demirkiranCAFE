@@ -131,9 +131,13 @@ export function MusicPlayer({
                 ytPlayerRef.current = null;
             }
             if (audioRef.current) {
+                // Şarkı bittiğinde src temizlendiği için "akış kesildi" (onerror) tetiklenmemeli
+                audioRef.current.onerror = null;
+                audioRef.current.onended = null;
                 audioRef.current.pause();
                 audioRef.current.src = '';
             }
+            setIsPlaying(false);
             return;
         }
 
@@ -145,11 +149,19 @@ export function MusicPlayer({
                 ytPlayerRef.current = null;
             }
 
+            // Backend Proxy URL'sini oluştur (IP Kilitlenmelerini Atlamak İçin)
+            const serverUrl = socket?.io?.uri || 'https://cafe.cagridemirkiran.com';
+            const proxyStreamUrl = `${serverUrl}/music/stream?url=${encodeURIComponent(nowPlaying.streamUrl)}`;
+
             // HTML5 Audio ayarla
             if (!audioRef.current) {
-                audioRef.current = new Audio(nowPlaying.streamUrl);
-            } else {
-                audioRef.current.src = nowPlaying.streamUrl;
+                audioRef.current = new Audio();
+            }
+
+            // Eğer URL aynı değilse yükle (Aynı şarkı devam ederken play() atmaması için)
+            if (audioRef.current.src !== proxyStreamUrl) {
+                audioRef.current.onerror = null;
+                audioRef.current.src = proxyStreamUrl;
             }
 
             const audio = audioRef.current;
@@ -168,6 +180,9 @@ export function MusicPlayer({
             audio.onplay = () => setIsPlaying(true);
             audio.onpause = () => setIsPlaying(false);
             audio.onerror = (e) => {
+                // Şarkı boşaltılırken oluşan hataları yoksay
+                if (!audio.src || audio.src === window.location.href) return;
+
                 console.error("HTML5 Audio Error fallback to IFrame", e);
                 // HTML5 oynayamazsa veya stream patlarsa fallback olarak IFrame'i tetikle
                 setStatusMessage('⚠️ Ses akışı kesildi, IFrame\'e geçiliyor...');
@@ -176,11 +191,19 @@ export function MusicPlayer({
                 setUseIframeFallback(true);
             };
 
-            audio.play().catch(err => {
-                console.warn("Audio play blocked", err);
-                setStatusMessage('⚠️ Otomatik oynatma engellendi, oynat tuşuna basın.');
-                setTimeout(() => setStatusMessage(''), 3000);
-            });
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(err => {
+                    if (err.name === 'AbortError') {
+                        // Şarkı hızlı hızlı atlandığında veya geçişlerde gayet normal
+                        console.debug('Audio play aborted due to change');
+                    } else {
+                        console.warn("Audio play blocked", err);
+                        setStatusMessage('⚠️ Otomatik oynatma engellendi, oynat tuşuna basın.');
+                        setTimeout(() => setStatusMessage(''), 3000);
+                    }
+                });
+            }
 
             setIsPlaying(true);
             return;
@@ -320,10 +343,15 @@ export function MusicPlayer({
             }
 
             // HTML5 Audio Sync
-            if (audioRef.current) {
+            if (audioRef.current && audioRef.current.src) {
                 try {
                     if (shouldPlay) {
-                        audioRef.current.play().catch(() => { });
+                        const playPromise = audioRef.current.play();
+                        if (playPromise !== undefined) {
+                            playPromise.catch(err => {
+                                if (err.name !== 'AbortError') console.warn(err);
+                            });
+                        }
                     } else {
                         audioRef.current.pause();
                     }

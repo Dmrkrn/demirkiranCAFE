@@ -71,9 +71,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ isOpen, onClose, o
     const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
     const [videoInputs, setVideoInputs] = useState<MediaDeviceInfo[]>([]);
 
-    const [selectedMic, setSelectedMic] = useState<string>('');
-    const [selectedSpeaker, setSelectedSpeaker] = useState<string>('');
-    const [selectedCamera, setSelectedCamera] = useState<string>('');
+    const [selectedMic, setSelectedMic] = useState<string>(() => localStorage.getItem('demirkiran-active-mic') || '');
+    const [selectedSpeaker, setSelectedSpeaker] = useState<string>(() => localStorage.getItem('demirkiran-active-speaker') || '');
+    const [selectedCamera, setSelectedCamera] = useState<string>(() => localStorage.getItem('demirkiran-active-camera') || '');
 
     const [micVolume, setMicVolume] = useState<number>(100);
     const [speakerVolume, setSpeakerVolume] = useState<number>(100);

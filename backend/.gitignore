@@ -4,6 +4,9 @@
 .env.*
 *.env
 
+# Proxy credentials (volume mount ile Docker'a veriliyor)
+Webshare residential proxies.txt
+
 # Dependencies
 node_modules/
 
